@@ -6,220 +6,189 @@ import re
 
 @dataclass
 class SoilProfile:
-    """
-    Manages Soil Physics and Spatial Assignment
-    """
     soil_definitions: List[Dict[str, Any]] = field(default_factory=list)
     assignment_matrix: np.ndarray = field(default_factory=lambda: np.array([]))
-
-    def add_soil_type(self, name: str, theta_s: float, theta_r: float, 
-                     alpha: float, n: float, k_sat: float) -> int:
-        """Add a new soil type and return its ID"""
-        new_id = len(self.soil_definitions) + 1
-        m = 1.0 - (1.0/n)
-        self.soil_definitions.append({
-            'id': new_id, 'name': name, 'model': 1,
-            'theta_s': theta_s, 'theta_r': theta_r, 
-            'alpha': alpha, 'n': n, 'k_sat': k_sat, 'm': m
-        })
-        return new_id
+    profile_ranges: List[Dict[str, float]] = field(default_factory=list)
 
     @classmethod
     def from_files(cls, def_path: str, bod_path: str) -> 'SoilProfile':
-        """
-        Robustly parse soil definition and assignment files
-        """
         profile = cls()
         
-        # ═══════════════════════════════════════════════════════════
-        # 1. Parse soils.def
-        # ═══════════════════════════════════════════════════════════
+        # 1. PARSE SOILS.DEF
         def_file = Path(def_path)
         if def_file.exists():
             try:
                 with open(def_file, 'r') as f:
-                    full_text = f.read()
+                    lines = []
+                    for l in f.readlines():
+                        clean = l.split('%')[0].strip()
+                        if clean: lines.append(clean)
                 
-                # Remove all comment lines
-                lines = [l.strip() for l in full_text.split('\n') 
-                        if l.strip() and not l.strip().startswith('%')]
-                
-                if not lines:
-                    raise ValueError("soils.def is empty or all comments")
-                
-                # First line: number of soil types
-                n_soils = int(lines[0].split()[0])
-                print(f"  Reading {n_soils} soil types from {def_file.name}")
-                
-                idx = 1
-                for _ in range(n_soils):
-                    if idx >= len(lines):
-                        break
+                if lines:
+                    n_soils = int(lines[0].split()[0])
+                    current_line = 1
                     
-                    # Line 1: ID MODEL 'NAME'
-                    header_line = lines[idx]
-                    
-                    # Handle quoted names: "1  1  'Sandy_Loam'"
-                    match = re.match(r"(\d+)\s+(\d+)\s+'([^']+)'", header_line)
-                    if match:
-                        sid = int(match.group(1))
-                        model = int(match.group(2))
-                        name = match.group(3)
-                    else:
-                        # Fallback: split and take last as name
-                        parts = header_line.split()
-                        sid = int(parts[0])
-                        model = int(parts[1])
-                        name = parts[2].strip("'\"") if len(parts) > 2 else f"Soil_{sid}"
-                    
-                    idx += 1
-                    
-                    # Line 2: Parameters (theta_s theta_r alpha n k_sat)
-                    if idx >= len(lines):
-                        print(f"⚠ Missing parameters for soil {sid}, skipping")
-                        break
+                    for i in range(n_soils):
+                        if current_line >= len(lines): break
                         
-                    param_line = lines[idx]
-                    params = [float(x) for x in param_line.split()]
-                    
-                    if len(params) < 5:
-                        print(f"⚠ Incomplete parameters for soil {sid}, skipping")
-                        idx += 1
-                        continue
-                    
-                    profile.soil_definitions.append({
-                        'id': sid,
-                        'model': model,
-                        'name': name,
-                        'theta_s': params[0],
-                        'theta_r': params[1],
-                        'alpha': params[2],
-                        'n': params[3],
-                        'k_sat': params[4],
-                        'm': 1.0 - 1.0/params[3]  # Calculate m
-                    })
-                    
-                    idx += 1
-                
-                print(f"  ✓ Loaded {len(profile.soil_definitions)} soil type(s)")
-                
+                        # Line A: Name
+                        name = lines[current_line].strip("'\"")
+                        current_line += 1
+                        
+                        # Line B: Model ID + Flags
+                        if current_line >= len(lines): break
+                        flag_vals = [float(x) for x in lines[current_line].split()]
+                        model = int(flag_vals[0]) if flag_vals else 1
+                        current_line += 1
+                        
+                        # Line C: Parameters
+                        if current_line >= len(lines): break
+                        params = [float(x) for x in lines[current_line].split()]
+                        current_line += 1
+                        
+                        # Skip extra 0 lines
+                        while current_line < len(lines):
+                            if re.match(r'^0\.?\s+0\.?\s+0\.?', lines[current_line]):
+                                current_line += 1
+                            else:
+                                break
+                        
+                        if len(params) >= 5:
+                            # Standard Format: Ts, Tr, Alpha, n, Ks
+                            if params[0] < 1e-3 and params[3] > 1.0: # Legacy (Ks first)
+                                ks, ts, tr, alpha, n = params[0], params[1], params[2], params[3], params[4]
+                            else:
+                                ts, tr, alpha, n, ks = params[0], params[1], params[2], params[3], params[4]
+
+                            profile.soil_definitions.append({
+                                'id': i + 1,
+                                'name': name,
+                                'model': model,
+                                'theta_s': ts, 'theta_r': tr,
+                                'alpha': alpha, 'n': n, 'k_sat': ks
+                            })
+
             except Exception as e:
                 print(f"⚠ Error parsing soils.def: {e}")
-        else:
-            print(f"⚠ Soil definition file not found: {def_path}")
 
-        # ═══════════════════════════════════════════════════════════
-        # 2. Parse soil_horizons.bod
-        # ═══════════════════════════════════════════════════════════
+        # 2. PARSE .BOD
         bod_file = Path(bod_path)
         if bod_file.exists():
             try:
                 with open(bod_file, 'r') as f:
-                    lines = f.readlines()
-                
-                # Skip header line "HANG 1"
-                data_lines = [l.strip() for l in lines[1:] if l.strip()]
-                
-                # Each line contains soil IDs (fixed width: 3 chars each)
-                # Example: "  3  3  3  3  3..."
-                soil_ids = []
-                
-                for line in data_lines:
-                    # Split into 3-character chunks
-                    # OR use simple split if space-separated
-                    if '  ' in line:  # Fixed width format
-                        # Parse as fixed-width (every 3 chars)
-                        n_chars = len(line)
-                        for i in range(0, n_chars, 3):
-                            chunk = line[i:i+3].strip()
-                            if chunk and chunk.replace('-','').isdigit():
-                                soil_ids.append(int(chunk))
-                    else:  # Space-separated
-                        tokens = line.split()
-                        soil_ids.extend([int(t) for t in tokens if t.replace('-','').isdigit()])
-                
-                profile.assignment_matrix = np.array(soil_ids, dtype=int)
-                print(f"  ✓ Loaded {len(soil_ids)} soil assignments from {bod_file.name}")
-                
+                    lines = []
+                    for l in f.readlines():
+                        clean = l.split('%')[0].strip()
+                        if clean: lines.append(clean)
+
+                if lines:
+                    first_line = lines[0]
+                    if first_line.upper().startswith('B') or "HANG" in first_line.upper():
+                        print(f" → Detected MATRIX MODE (Header: {first_line.split()[0]})")
+                        all_ids = []
+                        for l in lines[1:]:
+                            all_ids.extend([int(float(x)) for x in l.split()])
+                        profile.assignment_matrix = np.array(all_ids, dtype=int)
+                    else:
+                        parts = first_line.split()
+                        ianz = int(parts[0])
+                        print(f" → Detected DEFINITION MODE (Count={ianz})")
+                        for i in range(ianz):
+                            line_idx = i + 1
+                            if line_idx >= len(lines): break
+                            p = [float(x) for x in lines[line_idx].split()]
+                            if len(p) >= 5:
+                                profile.profile_ranges.append({
+                                    'start_v': p[0], 'end_v': p[1],
+                                    'start_l': p[2], 'end_l': p[3],
+                                    'soil_id': int(p[4])
+                                })
             except Exception as e:
-                print(f"⚠ Error parsing soil horizons: {e}")
-        else:
-            print(f"⚠ Soil assignment file not found: {bod_path}")
-        
+                print(f"⚠ Error parsing bod file: {e}")
+
         return profile
 
-    def write_soils_def(self, filepath: str):
-        """Write soil definitions in CATFLOW format"""
-        path = Path(filepath)
-        path.parent.mkdir(parents=True, exist_ok=True)
+    def apply_profile_to_mesh(self, n_layers: int, n_cols: int, eta=None, xsi=None) -> np.ndarray:
+        if not self.profile_ranges:
+            if self.assignment_matrix.size == n_layers * n_cols:
+                return self.assignment_matrix.reshape(n_layers, n_cols)
+            return np.ones((n_layers, n_cols), dtype=int)
+
+        if eta is None: eta = np.linspace(0, 1, n_layers)
+        if xsi is None: xsi = np.linspace(0, 1, n_cols)
         
-        with open(path, 'w') as f:
-            f.write(f"{len(self.soil_definitions)}          % Number of soil types\n")
+        matrix = np.ones((n_layers, n_cols), dtype=int)
+        for r in self.profile_ranges:
+            sid = r['soil_id']
+            v_mask = (eta >= min(r['start_v'], r['end_v'])) & (eta <= max(r['start_v'], r['end_v']))
+            l_mask = (xsi >= min(r['start_l'], r['end_l'])) & (xsi <= max(r['start_l'], r['end_l']))
             
-            for s in self.soil_definitions:
-                f.write(f"\n% Soil type {s['id']}: {s['name']}\n")
-                f.write(f"{s['id']:3d}  {s.get('model', 1):2d}  '{s['name']}'\n")
-                f.write(f"  {s['theta_s']:.4f}  {s['theta_r']:.4f}  ")
-                f.write(f"{s['alpha']:.6f}  {s['n']:.4f}  {s['k_sat']:.6e}\n")
-
-    def write_bod_file(self, filepath: str, n_layers: int, n_cols: int):
-        """Write soil assignment matrix"""
-        path = Path(filepath)
-        path.parent.mkdir(parents=True, exist_ok=True)
+            for i in range(n_layers):
+                if v_mask[i]:
+                    for j in range(n_cols):
+                        if l_mask[j]: matrix[i, j] = sid
+        self.assignment_matrix = matrix
+        return matrix
         
-        # Validate and reshape
-        if self.assignment_matrix.size == 0:
-            print("⚠ No soil assignment data, creating default (all type 1)")
-            mat = np.ones((n_layers, n_cols), dtype=int)
-        elif self.assignment_matrix.size != n_layers * n_cols:
-            print(f"⚠ Soil matrix size mismatch ({self.assignment_matrix.size} vs {n_layers*n_cols})")
-            print("  Creating default matrix")
-            mat = np.ones((n_layers, n_cols), dtype=int)
-        else:
-            mat = self.assignment_matrix.reshape(n_layers, n_cols)
-        
-        with open(path, 'w') as f:
-            f.write(" HANG           1\n")
-            for row in mat:
-                # Fixed width format: 3 chars per value
-                line = ''.join([f'{val:3d}' for val in row])
-                f.write(f"{line}\n")
-
-    def validate(self, n_layers: int, n_cols: int) -> List[str]:
-        """
-        Validate soil data consistency
-        Returns list of warning/error messages
-        """
+    def validate(self, n_layers, n_cols):
         issues = []
-        
-        # Check if any soils defined
         if not self.soil_definitions:
             issues.append("ERROR: No soil types defined")
-        
-        # Check assignment matrix
-        if self.assignment_matrix.size == 0:
-            issues.append("WARNING: No soil assignments")
-        elif self.assignment_matrix.size != n_layers * n_cols:
-            issues.append(f"ERROR: Soil matrix size {self.assignment_matrix.size} doesn't match mesh {n_layers}×{n_cols}")
-        
-        # Check all assigned IDs exist
-        if self.assignment_matrix.size > 0 and self.soil_definitions:
-            defined_ids = {s['id'] for s in self.soil_definitions}
-            assigned_ids = set(np.unique(self.assignment_matrix))
-            missing = assigned_ids - defined_ids
-            
-            if missing:
-                issues.append(f"ERROR: Soil IDs in assignment not defined: {missing}")
-        
-        # Check parameter validity
-        for s in self.soil_definitions:
-            if not (0 <= s['theta_r'] < s['theta_s'] <= 1):
-                issues.append(f"ERROR: Invalid water content for {s['name']}: θr={s['theta_r']}, θs={s['theta_s']}")
-            if s['alpha'] <= 0:
-                issues.append(f"ERROR: Invalid alpha for {s['name']}: {s['alpha']}")
-            if s['n'] <= 1:
-                issues.append(f"ERROR: Invalid n for {s['name']}: {s['n']}")
-            if s['k_sat'] <= 0:
-                issues.append(f"ERROR: Invalid k_sat for {s['name']}: {s['k_sat']}")
-        
+        if self.assignment_matrix.size > 0:
+            if self.assignment_matrix.size != n_layers * n_cols:
+                issues.append(f"ERROR: Matrix size {self.assignment_matrix.size} != {n_layers*n_cols}")
         return issues
+
+    def write_soils_def(self, filepath: str):
+        """Writes soils.def file"""
+        lines = []
+        lines.append(f"{len(self.soil_definitions)}  % Number of soils")
+        
+        for s in self.soil_definitions:
+            lines.append(f"'{s['name']}'")
+            # Standard Flags: Model ID, 800, Anisotropy...
+            lines.append(f"{s['model']} 800 1.00 1.00 0.09 0.50 0.34 0.11 20.00 0.70 0.05 1.00 1.00 1.00")
+            # Standard Parameters: Ts Tr Alpha n Ks
+            # Note: Ks in m/s
+            lines.append(f"{s['theta_s']:.4f} {s['theta_r']:.4f} {s['alpha']:.4f} {s['n']:.4f} {s['k_sat']:.2e}")
+            lines.append("0. 0. 0.  % Dummy blocks")
+            lines.append("0. 0. 0.")
+            lines.append("0. 0. 0.")
+            
+        with open(filepath, 'w') as f:
+            f.write('\n'.join(lines))
+
+    def write_bod_file(self, filepath: str, n_layers: int, n_cols: int):
+        """Writes assignment matrix to .bod file"""
+        
+        if self.assignment_matrix.size == 0 and self.profile_ranges:
+            print(f"    (Auto-generating soil matrix from {len(self.profile_ranges)} profile ranges)")
+            self.apply_profile_to_mesh(n_layers, n_cols)
+            
+        # Check size again
+        needed_size = n_layers * n_cols
+        if self.assignment_matrix.size != needed_size:
+            # Last ditch effort: if still empty, fill with Default Soil 1
+            if self.assignment_matrix.size == 0:
+                print("    (Warning: No soil data found. Defaulting entire mesh to Soil ID 1)")
+                self.assignment_matrix = np.ones((n_layers, n_cols), dtype=int)
+            else:
+                raise ValueError(f"Assignment matrix size {self.assignment_matrix.size} does not match mesh {needed_size}")
+            
+        lines = []
+        # Matrix Mode Header: B NV NL HangID
+        lines.append(f"B   {n_layers}   {n_cols}    1")
+        
+        # Flatten and Reshape to ensure correct 2D structure
+        # Note: CATFLOW usually expects Row 1 (Top) to Row N (Bottom)
+        flat = self.assignment_matrix.flatten()
+        mat = flat.reshape(n_layers, n_cols)
+        
+        # Write row by row
+        for i in range(n_layers):
+            row_str = " ".join(str(x) for x in mat[i])
+            lines.append(row_str)
+            
+        with open(filepath, 'w') as f:
+            f.write('\n'.join(lines))
+        print(f"✓ Wrote soil assignment to {filepath}")

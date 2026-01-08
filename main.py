@@ -2,6 +2,7 @@ import subprocess
 import os
 import shutil
 from pathlib import Path
+from comparator import CATFLOWComparator
 from diagnostic import CATFLOWDiagnostic
 from model.project import CATFLOWProject
 from model.outputs import SimulationResults
@@ -12,10 +13,7 @@ class CATFLOWRunner:
         if not self.executable.exists():
             raise FileNotFoundError(f"Solver not found at {self.executable}")
 
-    def run(self, 
-            project: CATFLOWProject, 
-            working_dir: str = "ft_backend", 
-            write_inputs: bool = False) -> CATFLOWProject:
+    def run(self, project: CATFLOWProject, working_dir: str = "ft_backend") -> CATFLOWProject:
         """
         Runs the solver on the given project.
         
@@ -26,27 +24,11 @@ class CATFLOWRunner:
                           If False, assumes .in files already exist in working_dir.
         """
         work_path = Path(working_dir).resolve()
-        
-        # A. Clean & Create Directory (only if we are writing new inputs)
-        #if write_inputs:
-        #    if work_path.exists():
-        #        # Optional: shutil.rmtree(work_path) to start clean
-        #        pass
-        #    work_path.mkdir(parents=True, exist_ok=True)
-        #    
-        #    print(f"--- Generating Inputs in {work_path} ---")
-        #    project.write_to_folder(str(work_path))
-        #else:
-        #    print(f"--- Using Existing Inputs in {work_path} ---")
-        #    if not work_path.exists():
-        #        raise FileNotFoundError(f"Working directory {work_path} does not exist!")
-
-        # B. Execute
+    
         original_dir = os.getcwd()
         os.chdir(work_path)
         try:
             print(f"Executing: {self.executable.name}")
-            # Capture output so we can see if it actually ran
             result = subprocess.run([str(self.executable)], check=False, capture_output=True, text=True)
             print("Solver finished.")
             if result.returncode != 0:
@@ -78,26 +60,23 @@ class CATFLOWRunner:
 
 def RUN():
     base_data_folder = "ft_backend" 
-    runner = CATFLOWRunner(f"{base_data_folder}/catflow.exe")
+    #runner = CATFLOWRunner(f"{base_data_folder}/catflow.exe")
 
-    project = CATFLOWProject.from_legacy_folder(base_data_folder)
-    
-    print("Running in existing folder...")
-    project = runner.run(project, working_dir=base_data_folder)
-
-    if project.results:
-        print(project.results.water_balance.head())
-        
-        # Access spatial moisture at t=3600.0
-        # moisture_map = project.results.moisture_fields.get(3600.0)
+    #project = CATFLOWProject.from_legacy_folder(base_data_folder)
+    #project.summary()
+    project = CATFLOWProject.load("TEST/new")
+    project.write_to_folder(base_data_folder)
 
 
 def diagnose():
     import sys
-    diagnostic = CATFLOWDiagnostic("ft_backend")
-    results = diagnostic.run_full_diagnostic()
-    
-    sys.exit(len(results['errors']))
+    #diagnostic = CATFLOWDiagnostic("ft_backend")
+    #results = diagnostic.run_full_diagnostic()
+    #sys.exit(len(results['errors']))
+    comp = CATFLOWComparator("IN_TEMPLATE", "ft_backend")
+    comp.compare()
+
 
 if __name__ == "__main__":
     diagnose()
+    #RUN()

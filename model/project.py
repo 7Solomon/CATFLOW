@@ -13,6 +13,7 @@ from model.inputs.surface import SurfaceProperties
 from model.landuse import LandUseDefinition
 from model.outputs import SimulationResults
 from model.printout import PrintoutTimes
+from utils import create_minimal_required_files
 
 
 @dataclass
@@ -37,16 +38,16 @@ class CATFLOWProject:
     _legacy_paths: Dict[str, str] = field(default_factory=dict)
     results: Optional[SimulationResults] = None
 
-    def save(self, filepath: str):
+    def save(self, filename: str):
         """Binary save of entire project state"""
-        with open(filepath, 'wb') as f:
+        with open(f"{filename}.pkl", 'wb') as f:
             pickle.dump(self, f)
-        print(f"✓ Project saved to {filepath}")
+        print(f"✓ Project saved to {filename}")
 
     @classmethod
-    def load(cls, filepath: str) -> 'CATFLOWProject':
+    def load(cls, filename: str) -> 'CATFLOWProject':
         """Binary load"""
-        with open(filepath, 'rb') as f:
+        with open(f"{filename}.pkl", 'rb') as f:
             return pickle.load(f)
 
     @classmethod
@@ -236,72 +237,82 @@ class CATFLOWProject:
         
         return project
 
-    #def write_to_folder(self, folder_path: str):
-    #    """
-    #    Enhanced export with all components
-    #    """
-    #    base = Path(folder_path)
-    #    base.mkdir(parents=True, exist_ok=True)
-    #    
-    #    print(f"\n{'='*60}")
-    #    print(f"Writing CATFLOW Project to: {base}")
-    #    print(f"{'='*60}\n")
-    #    
-    #    # Define file structure
-    #    file_structure = {
-    #        'geo': 'in/hillgeo/hang1.geo',
-    #        'soils_def': 'in/soil/soils.def',
-    #        'soils_bod': 'in/soil/soil_horizons.bod',
-    #        'timeser': 'in/control/timeser.def',
-    #        'printout': 'in/control/printout.prt',
-    #        'surface': 'in/landuse/surface.pob',
-    #        'boundary': 'in/control/boundary.rb',
-    #        'lu_file': 'in/landuse/lu_file.def',
-    #        'winddir': 'in/climate/winddir.def',
-    #        'run': 'run_01.in'
-    #    }
-    #    
-    #    # Write core components
-    #    written_files = []
-    #    
-    #    if self.mesh:
-    #        print("  [1/5] Writing mesh...")
-    #        path = base / file_structure['geo']
-    #        self.mesh.to_file(str(path))
-    #        written_files.append(file_structure['geo'])
-    #    
-    #    if self.soils:
-    #        print("  [2/5] Writing soils...")
-    #        path = base / file_structure['soils_def']
-    #        self.soils.write_soils_def(str(path))
-    #        written_files.append(file_structure['soils_def'])
-    #        
-    #        if self.mesh:
-    #            path = base / file_structure['soils_bod']
-    #            self.soils.write_bod_file(str(path), self.mesh.n_layers, self.mesh.n_columns)
-    #            written_files.append(file_structure['soils_bod'])
-    #    
-    #    if self.forcing:
-    #        print("  [3/5] Writing forcing...")
-    #        path = base / file_structure['timeser']
-    #        self.forcing.to_file(str(path))
-    #        written_files.append(file_structure['timeser'])
-    #    
-    #    # Write minimal required files that may be missing
-    #    print("  [4/5] Creating required stub files...")
-    #    
-    #    create_minimal_required_files(base)
-    #    
-    #    # Write run file
-    #    print("  [5/5] Writing run configuration...")
-    #    self._write_run_file(base / file_structure['run'], file_structure)
-    #    
-    #    # Write CATFLOW.IN
-    #    with open(base / "CATFLOW.IN", "w") as f:
-    #        f.write(f"run_01.in                       2.0\n")
-    #    
-    #    print(f"\n✓ Exported {len(written_files)} files")
-    #    print(f"{'='*60}\n")
+    def write_to_folder(self, folder_path: str):
+        """
+        Enhanced export with all components
+        """
+        base = Path(folder_path)
+        base.mkdir(parents=True, exist_ok=True)
+        
+        print(f"\n{'='*60}")
+        print(f"Writing CATFLOW Project to: {base}")
+        print(f"{'='*60}\n")
+        
+        # Define file structure
+        file_structure = {
+            'geo': 'in/hillgeo/hang1.geo',
+            'soils_def': 'in/soil/soils.def',
+            'soils_bod': 'in/soil/soil_horizons.bod',
+            'timeser': 'in/control/timeser.def',
+            'printout': 'in/control/printout.prt',
+            'surface': 'in/landuse/surface.pob',
+            'boundary': 'in/control/boundary.rb',
+            'lu_file': 'in/landuse/lu_file.def',
+            'winddir': 'in/climate/winddir.def',
+            'run': 'run_01.in'
+        }
+        
+        # Write core components
+        written_files = []
+        
+        if self.mesh:
+            print("  [1/5] Writing mesh...")
+            path = base / file_structure['geo']
+            path.parent.mkdir(parents=True, exist_ok=True)
+            self.mesh.to_file(str(path))
+            written_files.append(file_structure['geo'])
+        
+        if self.soils:
+            print("  [2/5] Writing soils...")
+            path = base / file_structure['soils_def']
+            path.parent.mkdir(parents=True, exist_ok=True)
+            self.soils.write_soils_def(str(path))
+            written_files.append(file_structure['soils_def'])
+            
+            if self.mesh:
+                path = base / file_structure['soils_bod']
+                path.parent.mkdir(parents=True, exist_ok=True)
+                self.soils.write_bod_file(str(path), self.mesh.n_layers, self.mesh.n_columns)
+                written_files.append(file_structure['soils_bod'])
+        
+        if self.forcing:
+            print("  [3/5] Writing forcing...")
+            path = base / file_structure['timeser']
+            path.parent.mkdir(parents=True, exist_ok=True)
+            self.forcing.to_file(str(path))
+            written_files.append(file_structure['timeser'])
+        
+        # Write minimal required files that may be missing
+        print("  [4/5] Creating required stub files...")
+        
+        # Ensure 'in' and subfolders exist for stubs too
+        (base / 'in/control').mkdir(parents=True, exist_ok=True)
+        (base / 'in/landuse').mkdir(parents=True, exist_ok=True)
+        (base / 'in/climate').mkdir(parents=True, exist_ok=True)
+        
+        create_minimal_required_files(base)
+        
+        # Write run file
+        print("  [5/5] Writing run configuration...")
+        self._write_run_file(base / file_structure['run'], file_structure)
+        
+        # Write CATFLOW.IN
+        with open(base / "CATFLOW.IN", "w") as f:
+            f.write(f"run_01.in                       2.0\n")
+        
+        print(f"\n✓ Exported {len(written_files)} files")
+        print(f"{'='*60}\n")
+
 
     def _write_run_file(self, run_path: Path, file_map: Dict[str, str]):
         """
@@ -339,11 +350,13 @@ class CATFLOWProject:
             "         47.35                  % lati",
             "          0                     % istact (number of solutes)",
             "        -80                     % Random seed",
-            "noiact                          % interaction with drainage network",
+            
+            "          0                          % interaction with drainage network (0=noiact)", 
+            
             f"     {len(outputs)}                         % number of output files",
         ]
         
-        # Output flags (all enabled)
+        # Output flags (all enabled) - Ensure Integer format!
         lines.append('  ' + '  '.join(['1'] * len(outputs)))
         
         # Output file paths
@@ -352,28 +365,32 @@ class CATFLOWProject:
         
         # Input files (in groups separated by -1)
         input_groups = [
-            # Group 1: Core definition files
+            # Group 1
             [file_map.get('soils_def', 'in/soil/soils.def'),
              file_map.get('timeser', 'in/control/timeser.def'),
              file_map.get('lu_file', 'in/landuse/lu_file.def'),
              file_map.get('winddir', 'in/climate/winddir.def')],
-            
-            # Group 2: Geometry and soil assignment
+             
+            # Group 2
             [file_map.get('geo', 'in/hillgeo/hang1.geo'),
              file_map.get('soils_bod', 'in/soil/soil_horizons.bod')],
-            
-            # Group 3: Control
+             
+            # Group 3
             [file_map.get('printout', 'in/control/printout.prt'),
              file_map.get('surface', 'in/landuse/surface.pob'),
              file_map.get('boundary', 'in/control/boundary.rb')]
         ]
         
-        # Write input file sections
         for i, group in enumerate(input_groups):
-            lines.append(f"          {len(group) if i == 0 else -1}")
+            # Ensure -1 is written as integer "-1", not float
+            count_val = len(group) if i == 0 else -1
+            lines.append(f"          {count_val}") 
             for fpath in group:
                 lines.append(f"{fpath:<40}")
         
+        with open(run_path, 'w') as f:
+            f.write('\n'.join(lines))
+
         # Write to file
         with open(run_path, 'w') as f:
             f.write('\n'.join(lines))

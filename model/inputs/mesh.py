@@ -5,138 +5,129 @@ import re
 
 @dataclass
 class HillslopeMesh:
-    """
-    Represents the 2D hillslope geometry with proper parsing
-    """
-    x_coords: np.ndarray          # 1D array (n_cols)
-    surface_elevs: np.ndarray     # 1D array (n_cols)
-    layer_depths: np.ndarray      # 2D array (n_layers, n_cols)
+    x_coords: np.ndarray
+    z_coords: np.ndarray
+    eta: np.ndarray
+    xsi: np.ndarray
+    n_layers: int
+    n_columns: int
     width: float = 1.0
-
-    @property
-    def n_layers(self) -> int:
-        return self.layer_depths.shape[0]
-
-    @property
-    def n_columns(self) -> int:
-        return len(self.x_coords)
-
+    
     @classmethod
     def from_file(cls, filepath: str) -> 'HillslopeMesh':
         path = Path(filepath)
-        if not path.exists():
-            raise FileNotFoundError(f"Geometry file not found: {filepath}")
+        if not path.exists(): 
+            raise FileNotFoundError(f"{filepath} not found")
 
         with open(path, 'r') as f:
-            content = f.read()
+            raw_lines = f.readlines()
+
+        # ---------------------------------------------------------
+        # ROBUST LINE FILTERING
+        # ---------------------------------------------------------
+        lines = []
+        for line in raw_lines:
+            # 1. Strip comments
+            clean = line.split('%')[0].strip()
+            if not clean: continue
+            
+            # 2. Skip Explicit Headers
+            if "HANG" in clean.upper(): continue
+            
+            # 3. Skip lines starting with non-numeric chars
+            if not re.match(r'^[0-9.+\-]', clean):
+                continue
+                
+            lines.append(clean)
+
+        if not lines:
+            raise ValueError("No valid data lines found in mesh file")
 
         try:
-            # Extract dimensions from header
-            header_match = re.search(r'^\s*(?:HANG)?\s*(?:\d+\s+)?(\d+)\s+(\d+)', content, re.MULTILINE)
-            if not header_match:
-                raise ValueError("Could not find HANG header with dimensions")
+            # 1. Header: NV, NL, Width, SlopeID
+            header_tokens = lines[0].split()
+            valid_nums = []
+            for t in header_tokens:
+                try:
+                    valid_nums.append(float(t))
+                except ValueError:
+                    break
             
-            n_layers = int(header_match.group(1))
-            n_columns = int(header_match.group(2))
+            if len(valid_nums) < 3:
+                 raise ValueError(f"Header line malformed: {lines[0]}")
+                 
+            n_rows = int(valid_nums[0])
+            n_cols = int(valid_nums[1])
+            width = valid_nums[2]
             
-            # Extract width
-            width_match = re.search(r'([\d.]+)\s+%\s*hillslope width', content, re.IGNORECASE)
-            width = float(width_match.group(1)) if width_match else 1.0
+            # 2. Block 1: Eta (Vertical)
+            nums = []
+            line_idx = 3
+            while len(nums) < n_rows and line_idx < len(lines):
+                nums.extend([float(x) for x in lines[line_idx].split()])
+                line_idx += 1
+            eta = np.array(nums[:n_rows])
             
-            # Find section markers and extract data
-            sections = {}
+            # 3. Block 2: Xsi + Coords (Lateral)
+            xsi = []
+            found_cols = 0
+            while found_cols < n_cols and line_idx < len(lines):
+                row_nums = [float(x) for x in lines[line_idx].split()]
+                if row_nums:
+                    xsi.append(row_nums[0])
+                    found_cols += 1
+                line_idx += 1
             
-            # Pattern: % Section Name followed by numbers
-            section_pattern = r'%\s*([^\n]+?)\s*\[(.*?)\]\s*\n([\d\s.eE+-]+?)(?=%|\Z)'
+            xsi = np.array(xsi)
             
-            # More flexible: Look for comment lines then numbers
-            lines = content.split('\n')
-            current_section = None
-            current_data = []
+            print(f"✓ Loaded mesh: {n_rows} layers × {len(xsi)} columns")
             
-            for line in lines:
-                # Check if this is a section header (starts with %)
-                if line.strip().startswith('%'):
-                    # Save previous section
-                    if current_section and current_data:
-                        sections[current_section] = current_data
-                    
-                    # Start new section
-                    section_name = line.strip().lower()
-                    if 'lateral' in section_name or 'coordinates' in section_name:
-                        current_section = 'x_coords'
-                    elif 'layer' in section_name or 'depth' in section_name:
-                        current_section = 'layer_depths'
-                    elif 'surface' in section_name or 'elevation' in section_name:
-                        current_section = 'surface_elevs'
-                    else:
-                        current_section = None
-                    current_data = []
-                    
-                elif current_section and line.strip() and not line.strip().startswith('%'):
-                    # Parse numbers from this line
-                    try:
-                        numbers = [float(x) for x in line.split()]
-                        current_data.extend(numbers)
-                    except ValueError:
-                        pass  # Skip non-numeric lines
-            
-            # Save last section
-            if current_section and current_data:
-                sections[current_section] = current_data
-            
-            # Validate we got all sections
-            if 'x_coords' not in sections:
-                raise ValueError("Missing lateral coordinates section")
-            if 'layer_depths' not in sections:
-                raise ValueError("Missing layer depths section")
-            if 'surface_elevs' not in sections:
-                raise ValueError("Missing surface elevations section")
-            
-            # Convert to arrays
-            x_coords = np.array(sections['x_coords'][:n_columns])
-            surface_elevs = np.array(sections['surface_elevs'][:n_columns])
-            
-            # Layer depths are stored as flat array (n_layers * n_columns)
-            layer_data = np.array(sections['layer_depths'])
-            expected_size = n_layers * n_columns
-            
-            if len(layer_data) < expected_size:
-                raise ValueError(f"Insufficient layer depth data: got {len(layer_data)}, need {expected_size}")
-            
-            layer_depths = layer_data[:expected_size].reshape(n_layers, n_columns)
-            
-            print(f"✓ Loaded mesh: {n_layers} layers × {n_columns} columns")
-            return cls(x_coords, surface_elevs, layer_depths, width)
-            
-        except Exception as e:
-            # Fallback: Create dummy mesh with correct dimensions
-            print(f"⚠ Geometry parsing failed ({e}), creating logical mesh")
-            x_coords = np.linspace(0, 100, n_columns) if 'n_columns' in locals() else np.array([0])
-            elevs = np.zeros(len(x_coords))
-            layers = np.zeros((n_layers if 'n_layers' in locals() else 1, len(x_coords)))
-            return cls(x_coords, elevs, layers, 1.0)
+            return cls(
+                x_coords=np.zeros(len(xsi)),
+                z_coords=np.zeros(n_rows),
+                eta=eta,
+                xsi=xsi,
+                n_layers=n_rows,
+                n_columns=len(xsi),
+                width=width
+            )
 
-    #def to_file(self, filepath: str):
-    #    """Writes standard Fortran-formatted .geo file"""
-    #    path = Path(filepath)
-    #    path.parent.mkdir(parents=True, exist_ok=True)
-    #    
-    #    with open(path, 'w') as f:
-    #        f.write(f"HANG           1\n")
-    #        f.write(f"{self.n_layers:5d}{self.n_columns:5d}          % nv, nl\n")
-    #        f.write(f"{self.width:10.3f}          % hillslope width\n")
-    #        
-    #        def write_array(data_arr, label, per_line=8):
-    #            f.write(f"\n% {label}\n")
-    #            flat = data_arr.flatten()
-    #            for i, val in enumerate(flat):
-    #                f.write(f"{val:10.3f}")
-    #                if (i + 1) % per_line == 0: 
-    #                    f.write("\n")
-    #            if len(flat) % per_line != 0: 
-    #                f.write("\n")
-#
-    #        write_array(self.x_coords, "Lateral coordinates [m]")
-    #        write_array(self.layer_depths, "Layer depths [m] (from surface, negative)")
-    #        write_array(self.surface_elevs, "Surface elevations [m]")
+        except Exception as e:
+            raise ValueError(f"Mesh parsing failed: {e}")
+
+    def to_file(self, filepath: str):
+        """
+        Writes a .geo file compatible with CATFLOW's rdhang subroutine.
+        """
+        lines = []
+        
+        # 1. Header: NV NL Width SlopeID
+        lines.append(f"{self.n_layers} {self.n_columns} {self.width:.4f} 1")
+        
+        # 2. Reference & Dimensions (Dummy)
+        lines.append("0.0 0.0 0.0")  # Ref coords
+        lines.append("1.0 1.0 1.0")  # Surface dims
+        
+        # 3. Eta Block
+        # Write 10 numbers per line
+        for i in range(0, len(self.eta), 10):
+            chunk = self.eta[i:i+10]
+            lines.append(" ".join(f"{x:.8f}" for x in chunk))
+            
+        # 4. Xsi Block
+        # rdhang expects: xsi, x_top, y_top, x_surf, y_surf, var_width
+        # We fill coordinates with 0.0 as we only track xsi
+        for val in self.xsi:
+            lines.append(f"{val:.8f} 0.0 0.0 0.0 0.0 1.0")
+            
+        # 5. Detailed Grid Block
+        # rdhang expects detailed parameters for every node.
+        # We write dummy neutral values: 0 elevation, 0 slope, 1.0 scaling factors, soil_id 1
+        dummy_params = "0.0 0.0 1.0 1.0 0.0 0.0 1"
+        for _ in range(self.n_columns):
+            for _ in range(self.n_layers):
+                lines.append(dummy_params)
+                
+        with open(filepath, 'w') as f:
+            f.write('\n'.join(lines))
+        print(f"✓ Wrote mesh to {filepath}")
