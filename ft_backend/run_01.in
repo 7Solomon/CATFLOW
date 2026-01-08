@@ -1,5 +1,5 @@
-01.01.2004          % start time
-01.02.2004          % end time
+01.01.2004 00:00:00.00          % start time
+01.02.2004 00:00:00.00          % end time
         0.0                     % offset
 pic                           % computation method
        3600.0                    % dtbach [s]

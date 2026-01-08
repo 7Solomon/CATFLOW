@@ -18,7 +18,7 @@ class ForcingData:
         path = Path(filepath)
         if not path.exists():
             raise FileNotFoundError("HERE ALSO")
-            return cls()
+
             
         try:
             # Read file, skipping comment lines '#'

@@ -91,18 +91,16 @@ class CATFLOWComparator:
         diff = list(difflib.unified_diff(lines_a, lines_b, n=0))
         # Filter out comment differences usually starting with %
         significant_diffs = [d for d in diff if not (d.startswith('---') or d.startswith('+++') or d.startswith('@@'))]
-        
-        # Heuristic: Check if diffs are just floating point formatting?
-        # (Too complex for simple script, but we report count)
-        
+
         if len(significant_diffs) > 0:
             print(f"  ⚠️ {name}: {len(significant_diffs)} differences found")
             # Print first 3 diffs
-            for d in significant_diffs[:3]:
+            for d in significant_diffs[:20]:
                 prefix = "OLD: " if d.startswith('-') else "NEW: "
                 print(f"      {prefix}{d[1:].strip()}")
-            if len(significant_diffs) > 3:
+            if len(significant_diffs) > 20:
                 print("      ...")
+                print("TO MANY")
         else:
-             print(f"  ✅ {name}: Content matches (ignoring whitespace/comments)")
+            print(f"  ✅ {name}: Content matches (ignoring whitespace/comments)")
 

@@ -140,23 +140,38 @@ class SoilProfile:
         return issues
 
     def write_soils_def(self, filepath: str):
-        """Writes soils.def file"""
+        """Writes soils.def file compatible with rdsoil"""
         lines = []
         lines.append(f"{len(self.soil_definitions)}  % Number of soils")
         
         for s in self.soil_definitions:
-            lines.append(f"'{s['name']}'")
+            sid = s['id']
+            raw_name = s['name']
+            
+            # Check if name already starts with "ID "
+            if not raw_name.strip().startswith(str(sid)):
+                final_name = f"{sid} {raw_name}"
+            else:
+                final_name = raw_name
+                
+            lines.append(final_name)
+            
             # Standard Flags: Model ID, 800, Anisotropy...
+            # Note: Ensure we write floats as floats
             lines.append(f"{s['model']} 800 1.00 1.00 0.09 0.50 0.34 0.11 20.00 0.70 0.05 1.00 1.00 1.00")
+            
             # Standard Parameters: Ts Tr Alpha n Ks
             # Note: Ks in m/s
             lines.append(f"{s['theta_s']:.4f} {s['theta_r']:.4f} {s['alpha']:.4f} {s['n']:.4f} {s['k_sat']:.2e}")
-            lines.append("0. 0. 0.  % Dummy blocks")
+            
+            # Dummy blocks
+            lines.append("0. 0. 0.")
             lines.append("0. 0. 0.")
             lines.append("0. 0. 0.")
             
         with open(filepath, 'w') as f:
             f.write('\n'.join(lines))
+
 
     def write_bod_file(self, filepath: str, n_layers: int, n_cols: int):
         """Writes assignment matrix to .bod file"""

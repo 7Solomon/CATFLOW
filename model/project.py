@@ -16,6 +16,7 @@ from model.printout import PrintoutTimes
 from utils import create_minimal_required_files
 
 
+
 @dataclass
 class CATFLOWProject:
 
@@ -31,6 +32,7 @@ class CATFLOWProject:
     boundary: Optional[BoundaryDefinition] = None
     land_use: Optional[LandUseDefinition] = None
     initial: Optional[InitialConditions] = None
+    
     
     # Simulation Control
     settings: Dict[str, Any] = field(default_factory=dict)
@@ -96,15 +98,15 @@ class CATFLOWProject:
         # Extract settings from header
         try:
             project.settings.update({
-                'start_time': lines[0].split()[0].strip(),
-                'end_time': lines[1].split()[0].strip(),
-                'offset': float(lines[2].split()[0]),
-                'method': lines[3].split()[0].strip(),
-                'dtbach': float(lines[4].split()[0]),
-                'qtol': float(lines[5].split()[0]),
-                'dt_max': float(lines[6].split()[0]),
-                'dt_min': float(lines[7].split()[0]),
-                'dt_init': float(lines[8].split()[0])
+               'start_time': lines[0].split('%')[0].strip(),
+                'end_time': lines[1].split('%')[0].strip(),
+                'offset': float(lines[2].split('%')[0]),
+                'method': lines[3].split('%')[0].strip(),
+                'dtbach': float(lines[4].split('%')[0]),
+                'qtol': float(lines[5].split('%')[0]),
+                'dt_max': float(lines[6].split('%')[0]),
+                'dt_min': float(lines[7].split('%')[0]),
+                'dt_init': float(lines[8].split('%')[0])
             })
             print("✓ Parsed simulation settings")
         except (IndexError, ValueError) as e:
@@ -228,8 +230,21 @@ class CATFLOWProject:
         except Exception as e:
             print(f"        ⚠ Error loading forcing: {e}")
         
-        # Load optional components
-        # Add similar blocks for surface, printout, etc. as you implement them
+        # Load Raw Optional Files
+        print("\n  Loading optional files...")
+        for key, target_attr in [
+            ('boundary', 'boundary_file'),
+            ('lu_file', 'landuse_file'),
+            ('printout', 'printout_file'),
+            ('surface', 'surface_file'),
+            ('winddir', 'winddir_file')
+        ]:
+            if key in paths and paths[key].exists():
+                try:
+                    print(f"    ✓ {key}")
+                    setattr(project, target_attr, RawTextFile.from_file(str(paths[key])))
+                except Exception as e:
+                    print(f"    ⚠ Error loading {key}: {e}")
         
         print(f"\n{'='*60}")
         print(f"✓ Project loaded successfully")
@@ -292,8 +307,36 @@ class CATFLOWProject:
             self.forcing.to_file(str(path))
             written_files.append(file_structure['timeser'])
         
+        # Write Raw Optional Files
+        print("  [4/5] Writing optional files...")
+        if self.boundary_file:
+            path = base / file_structure['boundary']
+            path.parent.mkdir(parents=True, exist_ok=True)
+            self.boundary_file.to_file(str(path))
+            written_files.append(file_structure['boundary'])
+        if self.landuse_file:
+            path = base / file_structure['lu_file']
+            path.parent.mkdir(parents=True, exist_ok=True)
+            self.landuse_file.to_file(str(path))
+            written_files.append(file_structure['lu_file'])
+        if self.printout_file:
+            path = base / file_structure['printout']
+            path.parent.mkdir(parents=True, exist_ok=True)
+            self.printout_file.to_file(str(path))
+            written_files.append(file_structure['printout'])
+        if self.surface_file:
+            path = base / file_structure['surface']
+            path.parent.mkdir(parents=True, exist_ok=True)
+            self.surface_file.to_file(str(path))
+            written_files.append(file_structure['surface'])
+        if self.winddir_file:
+            path = base / file_structure['winddir']
+            path.parent.mkdir(parents=True, exist_ok=True)
+            self.winddir_file.to_file(str(path))
+            written_files.append(file_structure['winddir'])
+        
         # Write minimal required files that may be missing
-        print("  [4/5] Creating required stub files...")
+        print("  [6/6] Creating required stub files...")
         
         # Ensure 'in' and subfolders exist for stubs too
         (base / 'in/control').mkdir(parents=True, exist_ok=True)
@@ -303,7 +346,7 @@ class CATFLOWProject:
         create_minimal_required_files(base)
         
         # Write run file
-        print("  [5/5] Writing run configuration...")
+        print("  [7/7] Writing run configuration...")
         self._write_run_file(base / file_structure['run'], file_structure)
         
         # Write CATFLOW.IN
@@ -320,6 +363,16 @@ class CATFLOWProject:
         """
         s = self.settings
         
+        # Date Handling: Preserve original string if available
+        # Ensure dates have time component
+        start = s.get('start_time', '01.01.2000 00:00:00.00')
+        end = s.get('end_time', '02.01.2000 00:00:00.00')
+        
+        if len(start) <= 10:
+            start += " 00:00:00.00"
+        if len(end) <= 10:
+            end += " 00:00:00.00"
+        
         # Output files
         outputs = [
             ('out/log.out', 'Log file'),
@@ -330,8 +383,8 @@ class CATFLOWProject:
         
         # Build file content
         lines = [
-            f"{s.get('start_time', '01.01.2000 00:00:00.00')}          % start time",
-            f"{s.get('end_time', '02.01.2000 00:00:00.00')}          % end time",
+            f"{start}          % start time",
+            f"{end}          % end time",
             f"        {s.get('offset', 0.0):.1f}                     % offset",
             f"{s.get('method', 'pic'):<30s}% computation method",
             f"       {s.get('dtbach', 3600.0):.1f}                    % dtbach [s]",
