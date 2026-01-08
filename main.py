@@ -2,6 +2,7 @@ import subprocess
 import os
 import shutil
 from pathlib import Path
+from diagnostic import CATFLOWDiagnostic
 from model.project import CATFLOWProject
 from model.outputs import SimulationResults
 
@@ -72,8 +73,10 @@ class CATFLOWRunner:
             print("Warning: Project has no mesh loaded. Cannot parse spatial results.")
             
         return project
+    
 
-if __name__ == "__main__":
+
+def RUN():
     base_data_folder = "ft_backend" 
     runner = CATFLOWRunner(f"{base_data_folder}/catflow.exe")
 
@@ -82,9 +85,19 @@ if __name__ == "__main__":
     print("Running in existing folder...")
     project = runner.run(project, working_dir=base_data_folder)
 
-    # 5. ANALYZE
     if project.results:
         print(project.results.water_balance.head())
         
         # Access spatial moisture at t=3600.0
         # moisture_map = project.results.moisture_fields.get(3600.0)
+
+
+def diagnose():
+    import sys
+    diagnostic = CATFLOWDiagnostic("ft_backend")
+    results = diagnostic.run_full_diagnostic()
+    
+    sys.exit(len(results['errors']))
+
+if __name__ == "__main__":
+    diagnose()

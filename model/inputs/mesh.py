@@ -1,20 +1,17 @@
 import numpy as np
-import pandas as pd
 from dataclasses import dataclass
 from pathlib import Path
+import re
 
 @dataclass
 class HillslopeMesh:
     """
-    Represents the 2D hillslope geometry:
-    - x_coords: Horizontal discretization
-    - surface_elevs: Surface elevation Z(x)
-    - layer_depths: Matrix of depths relative to surface (negative values)
+    Represents the 2D hillslope geometry with proper parsing
     """
     x_coords: np.ndarray          # 1D array (n_cols)
     surface_elevs: np.ndarray     # 1D array (n_cols)
     layer_depths: np.ndarray      # 2D array (n_layers, n_cols)
-    width: float = 1.0            # Physical width of the slice
+    width: float = 1.0
 
     @property
     def n_layers(self) -> int:
@@ -28,68 +25,118 @@ class HillslopeMesh:
     def from_file(cls, filepath: str) -> 'HillslopeMesh':
         path = Path(filepath)
         if not path.exists():
-            raise FileNotFoundError()
-            return cls(np.array([0]), np.array([0]), np.array([[0]]), 1.0)
+            raise FileNotFoundError(f"Geometry file not found: {filepath}")
 
         with open(path, 'r') as f:
-            content = f.read().split()
+            content = f.read()
 
         try:
-            # Format detection
-            if content[0].upper() == 'HANG':
-                # Standard
-                n_layers = int(content[2])
-                n_columns = int(content[3])
-                width = float(content[5])
-            else:
-                # "Profile" / Format 2 (Your Case)
-                n_layers = int(content[0])
-                n_columns = int(content[1])
-                width = float(content[2])
-
-            # Try to read actual data, but if it fails, return structure only
-            # This ensures the Runner always has valid dimensions for Output Parsing
+            # Extract dimensions from header
+            header_match = re.search(r'^\s*(?:HANG)?\s*(?:\d+\s+)?(\d+)\s+(\d+)', content, re.MULTILINE)
+            if not header_match:
+                raise ValueError("Could not find HANG header with dimensions")
             
-            # Simple heuristic: Do we have enough numbers?
-            # We need ~ 3 * (N*M) numbers for a full mesh.
-            # Your file only has ~40 lines, which is too small for a 15x15 full grid (225 nodes).
-            # This confirms it defines a PROFILE (1D line expanded to 2D), not a full grid.
+            n_layers = int(header_match.group(1))
+            n_columns = int(header_match.group(2))
             
-            # Since we can't reconstruct the full 3D mesh from just the profile 
-            # without the internal generator logic of CATFLOW, we return a 
-            # "Logical Mesh" (correct topology, dummy geometry).
+            # Extract width
+            width_match = re.search(r'([\d.]+)\s+%\s*hillslope width', content, re.IGNORECASE)
+            width = float(width_match.group(1)) if width_match else 1.0
             
-            # Create a logical grid (0..N, 0..M)
-            x_coords = np.linspace(0, 100, n_columns) # Dummy spacing
-            elevs = np.zeros(n_columns)
-            layer_depths = np.zeros((n_layers, n_columns))
+            # Find section markers and extract data
+            sections = {}
             
-            return cls(x_coords, elevs, layer_depths, width)
-
+            # Pattern: % Section Name followed by numbers
+            section_pattern = r'%\s*([^\n]+?)\s*\[(.*?)\]\s*\n([\d\s.eE+-]+?)(?=%|\Z)'
+            
+            # More flexible: Look for comment lines then numbers
+            lines = content.split('\n')
+            current_section = None
+            current_data = []
+            
+            for line in lines:
+                # Check if this is a section header (starts with %)
+                if line.strip().startswith('%'):
+                    # Save previous section
+                    if current_section and current_data:
+                        sections[current_section] = current_data
+                    
+                    # Start new section
+                    section_name = line.strip().lower()
+                    if 'lateral' in section_name or 'coordinates' in section_name:
+                        current_section = 'x_coords'
+                    elif 'layer' in section_name or 'depth' in section_name:
+                        current_section = 'layer_depths'
+                    elif 'surface' in section_name or 'elevation' in section_name:
+                        current_section = 'surface_elevs'
+                    else:
+                        current_section = None
+                    current_data = []
+                    
+                elif current_section and line.strip() and not line.strip().startswith('%'):
+                    # Parse numbers from this line
+                    try:
+                        numbers = [float(x) for x in line.split()]
+                        current_data.extend(numbers)
+                    except ValueError:
+                        pass  # Skip non-numeric lines
+            
+            # Save last section
+            if current_section and current_data:
+                sections[current_section] = current_data
+            
+            # Validate we got all sections
+            if 'x_coords' not in sections:
+                raise ValueError("Missing lateral coordinates section")
+            if 'layer_depths' not in sections:
+                raise ValueError("Missing layer depths section")
+            if 'surface_elevs' not in sections:
+                raise ValueError("Missing surface elevations section")
+            
+            # Convert to arrays
+            x_coords = np.array(sections['x_coords'][:n_columns])
+            surface_elevs = np.array(sections['surface_elevs'][:n_columns])
+            
+            # Layer depths are stored as flat array (n_layers * n_columns)
+            layer_data = np.array(sections['layer_depths'])
+            expected_size = n_layers * n_columns
+            
+            if len(layer_data) < expected_size:
+                raise ValueError(f"Insufficient layer depth data: got {len(layer_data)}, need {expected_size}")
+            
+            layer_depths = layer_data[:expected_size].reshape(n_layers, n_columns)
+            
+            print(f"✓ Loaded mesh: {n_layers} layers × {n_columns} columns")
+            return cls(x_coords, surface_elevs, layer_depths, width)
+            
         except Exception as e:
-            print(f"Mesh parsing error: {e}. Using default 1x1 mesh.")
-            return cls(np.array([0]), np.array([0]), np.array([[0]]), 1.0)
-        
+            # Fallback: Create dummy mesh with correct dimensions
+            print(f"⚠ Geometry parsing failed ({e}), creating logical mesh")
+            x_coords = np.linspace(0, 100, n_columns) if 'n_columns' in locals() else np.array([0])
+            elevs = np.zeros(len(x_coords))
+            layers = np.zeros((n_layers if 'n_layers' in locals() else 1, len(x_coords)))
+            return cls(x_coords, elevs, layers, 1.0)
 
-    def to_file(self, filepath: str):
-        """Writes standard Fortran-formatted .geo file"""
-        path = Path(filepath)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        
-        with open(path, 'w') as f:
-            f.write(f"HANG           1\n")
-            f.write(f"{self.n_layers:5d}{self.n_columns:5d}          % nv, nl\n")
-            f.write(f"{self.width:10.3f}          % hillslope width\n")
-            
-            def write_chunk(data_arr, label):
-                f.write(f"\n% {label}\n")
-                flat = data_arr.flatten()
-                for i, val in enumerate(flat):
-                    f.write(f"{val:10.3f}")
-                    if (i + 1) % 8 == 0: f.write("\n")
-                if len(flat) % 8 != 0: f.write("\n")
-
-            write_chunk(self.x_coords, "Lateral coordinates [m]")
-            write_chunk(self.layer_depths, "Layer depths [m]")
-            write_chunk(self.surface_elevs, "Surface elevations [m]")
-
+    #def to_file(self, filepath: str):
+    #    """Writes standard Fortran-formatted .geo file"""
+    #    path = Path(filepath)
+    #    path.parent.mkdir(parents=True, exist_ok=True)
+    #    
+    #    with open(path, 'w') as f:
+    #        f.write(f"HANG           1\n")
+    #        f.write(f"{self.n_layers:5d}{self.n_columns:5d}          % nv, nl\n")
+    #        f.write(f"{self.width:10.3f}          % hillslope width\n")
+    #        
+    #        def write_array(data_arr, label, per_line=8):
+    #            f.write(f"\n% {label}\n")
+    #            flat = data_arr.flatten()
+    #            for i, val in enumerate(flat):
+    #                f.write(f"{val:10.3f}")
+    #                if (i + 1) % per_line == 0: 
+    #                    f.write("\n")
+    #            if len(flat) % per_line != 0: 
+    #                f.write("\n")
+#
+    #        write_array(self.x_coords, "Lateral coordinates [m]")
+    #        write_array(self.layer_depths, "Layer depths [m] (from surface, negative)")
+    #        write_array(self.surface_elevs, "Surface elevations [m]")

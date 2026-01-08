@@ -17,6 +17,7 @@ class ForcingData:
     def from_file(cls, filepath: str) -> 'ForcingData':
         path = Path(filepath)
         if not path.exists():
+            raise FileNotFoundError("HERE ALSO")
             return cls()
             
         try:
