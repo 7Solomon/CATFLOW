@@ -5,6 +5,10 @@ import re
 
 @dataclass
 class HillslopeMesh:
+    """
+    Where is which node, mapping
+    """
+
     x_coords: np.ndarray
     z_coords: np.ndarray
     eta: np.ndarray

@@ -2,7 +2,10 @@ import numpy as np
 import pandas as pd
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Dict 
+from typing import List, Dict
+
+from model.inputs.landuse.parameters import PlantParameters
+
 
 
 @dataclass
@@ -10,7 +13,11 @@ class LandUseDefinition:
     """
     Land use parameter definitions (lu_file.def)
     """
-    land_uses: List[Dict] = field(default_factory=list)
+    assignment_vector: np.ndarray 
+    
+    # The Dictionary: What does ID 1 mean?
+    # Map ID -> PlantParameters Object
+    land_use_types: Dict[int, PlantParameters] = field(default_factory=dict)
     
     @classmethod
     def from_file(cls, filepath: str) -> 'LandUseDefinition':

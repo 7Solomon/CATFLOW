@@ -1,10 +1,6 @@
 # CATFLOW Python Wrapper Architecture
 
-This project wraps the legacy Fortran CATFLOW input/output files into structured Python Dataclasses. This allows for reading, programmatic editing, and writing of simulation projects while maintaining 100% compatibility with the Fortran binary.
-
----
-
-##File to Class Mapping
+## ile to Class Mapping
 
 Each CATFLOW file type corresponds to a specific Python Dataclass in the `model` module.
 

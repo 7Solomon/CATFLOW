@@ -6,6 +6,9 @@ import re
 
 @dataclass
 class SoilProfile:
+    """
+    What is growing on which node
+    """
     soil_definitions: List[Dict[str, Any]] = field(default_factory=list)
     assignment_matrix: np.ndarray = field(default_factory=lambda: np.array([]))
     profile_ranges: List[Dict[str, float]] = field(default_factory=list)
@@ -207,3 +210,102 @@ class SoilProfile:
         with open(filepath, 'w') as f:
             f.write('\n'.join(lines))
         print(f"✓ Wrote soil assignment to {filepath}")
+
+@dataclass
+class MacroporeDefinition:
+    """
+    Handles macropore distribution.
+    Mapped File: profil.mak (or macropore.def)
+    """
+    assignment_matrix: np.ndarray = field(default_factory=lambda: np.array([]))
+    profile_ranges: List[Dict[str, float]] = field(default_factory=list)
+    
+    @classmethod
+    def from_file(cls, filepath: str) -> 'MacroporeDefinition':
+        mac = cls()
+        path = Path(filepath)
+        if not path.exists(): return None
+
+        try:
+            with open(path, 'r') as f:
+                lines = [l.strip().split('%')[0] for l in f.readlines()]
+                lines = [l for l in lines if l]
+
+            if not lines: return None
+
+            first_line = lines[0]
+            
+            # MODE A: MATRIX (Starts with 'B' or 'HANG')
+            if first_line.upper().startswith('B') or "HANG" in first_line.upper():
+                print(f"    → Macropore: Matrix Mode detected")
+                all_ids = []
+                for l in lines[1:]:
+                    all_ids.extend([float(x) for x in l.split()]) # Read as float (macropore params are often floats)
+                mac.assignment_matrix = np.array(all_ids) # Keep as flat first
+                
+            # MODE B: PROFILE (Starts with Count)
+            else:
+                parts = first_line.split()
+                if len(parts) > 0 and parts[0].isdigit():
+                    ianz = int(parts[0])
+                    print(f"    → Macropore: Definition Mode (Count={ianz})")
+                    for i in range(ianz):
+                        line_idx = i + 1
+                        if line_idx >= len(lines): break
+                        p = [float(x) for x in lines[line_idx].split()]
+                        if len(p) >= 5:
+                            mac.profile_ranges.append({
+                                'start_v': p[0], 'end_v': p[1],
+                                'start_l': p[2], 'end_l': p[3],
+                                'value': p[4]  # Macropore value (vmak)
+                            })
+                            
+        except Exception as e:
+            print(f"⚠ Error parsing macropore file: {e}")
+            return None
+            
+        return mac
+
+    def to_file(self, filepath: str, n_layers: int, n_cols: int):
+        """Writes matrix mode macropore file"""
+        # Auto-generate matrix from ranges if needed
+        if self.assignment_matrix.size == 0 and self.profile_ranges:
+            self._apply_ranges_to_matrix(n_layers, n_cols)
+            
+        if self.assignment_matrix.size == 0:
+            return # Do not write empty file
+            
+        # Ensure correct shape
+        needed = n_layers * n_cols
+        if self.assignment_matrix.size != needed:
+             # Try to reshape? Or warn?
+             if self.assignment_matrix.size > 0:
+                 print(f"⚠ Warning: Macropore matrix size {self.assignment_matrix.size} != mesh {needed}")
+             return
+
+        rows, cols = n_layers, n_cols
+        lines = [f"B   {rows}   {cols}    1"] # Header
+        
+        flat = self.assignment_matrix.flatten()
+        mat = flat.reshape(rows, cols)
+        
+        for i in range(rows):
+            # Write floats for macropores usually
+            lines.append(" ".join(f"{x:.4f}" for x in mat[i]))
+            
+        with open(filepath, 'w') as f:
+            f.write('\n'.join(lines))
+            
+    def _apply_ranges_to_matrix(self, n_layers, n_cols):
+        # Helper to convert ranges -> matrix (Simplified version of Soil logic)
+        mat = np.zeros((n_layers, n_cols)) # Default 0 (no macropore)
+        eta = np.linspace(0, 1, n_layers)
+        xsi = np.linspace(0, 1, n_cols)
+        
+        for r in self.profile_ranges:
+            val = r['value']
+            v_mask = (eta >= min(r['start_v'], r['end_v'])) & (eta <= max(r['start_v'], r['end_v']))
+            l_mask = (xsi >= min(r['start_l'], r['end_l'])) & (xsi <= max(r['start_l'], r['end_l']))
+            mat[np.ix_(v_mask, l_mask)] = val
+            
+        self.assignment_matrix = mat

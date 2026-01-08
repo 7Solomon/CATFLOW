@@ -5,12 +5,13 @@ from pathlib import Path
 from typing import Dict, Any, Optional, List
 import re
 
-from model.inputs.conditions import BoundaryDefinition, InitialConditions
-from model.inputs.forcing import ForcingData
+from model.config import GlobalConfig, RunControl
+from model.inputs.boundaries.conditions import ForcingData, InitialConditions
+from model.inputs.boundaries.definitions import BoundaryDefinition
+from model.inputs.landuse.landuse import LandUseDefinition
 from model.inputs.mesh import HillslopeMesh
 from model.inputs.soil import SoilProfile
-from model.inputs.surface import SurfaceProperties
-from model.landuse import LandUseDefinition
+from model.inputs.surface.surface import SurfaceProperties
 from model.outputs import SimulationResults
 from model.printout import PrintoutTimes
 from utils import create_minimal_required_files
@@ -25,19 +26,21 @@ class CATFLOWProject:
     # Core components
     mesh: Optional[HillslopeMesh] = None
     soils: Optional[SoilProfile] = None
-    forcing: Optional[ForcingData] = None
     
-    surface: Optional[SurfaceProperties] = None
-    printout: Optional[PrintoutTimes] = None
+    #Boundaries
     boundary: Optional[BoundaryDefinition] = None
-    land_use: Optional[LandUseDefinition] = None
+    forcing: Optional[ForcingData] = None
     initial: Optional[InitialConditions] = None
-    
+
+    surface: Optional[SurfaceProperties] = None
+    land_use: Optional[LandUseDefinition] = None
+    printout: Optional[PrintoutTimes] = None
     
     # Simulation Control
-    settings: Dict[str, Any] = field(default_factory=dict)
-    
+    settings: Dict[str, RunControl | GlobalConfig] = field(default_factory=dict)
     _legacy_paths: Dict[str, str] = field(default_factory=dict)
+    
+    
     results: Optional[SimulationResults] = None
 
     def save(self, filename: str):
@@ -479,3 +482,37 @@ class CATFLOWProject:
         lines.append("=" * 60)
         
         return '\n'.join(lines)
+    
+
+
+
+##################################################################################################################
+##################################################################################################################
+##################################################################################################################
+
+@dataclass
+class CATFLOWProject:
+    name: str
+    
+    # 1. Control
+    config: GlobalConfig          # CATFLOW.IN
+    run_control: RunControl       # run_01.in
+    
+    # 2. Physics & Geometry
+    mesh: HillslopeMesh           # hang1.geo
+    soils: SoilProfile            # soils.def + .bod
+    macropores: Optional[Macropores] # profil.mak (New)
+    
+    # 3. Conditions
+    initial: InitialConditions    # rel_sat.ini
+    boundary: BoundaryDefinition  # boundary.rb
+    forcing: ForcingData          # timeser.def
+
+    
+    # 4. Surface & Atmosphere
+    surface: SurfaceProperties    # surface.pob
+    land_use: LandUseDefinition   # lu_file.def
+    wind: WindDirection           # winddir.def (New)
+    
+    # 5. Output Config
+    printout: PrintoutTimes       # printout.prt

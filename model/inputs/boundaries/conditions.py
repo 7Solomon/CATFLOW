@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -51,3 +52,46 @@ class ForcingData:
                     t = row['time_s'] / factor
                     v = row['value']
                     f.write(f"{t:15.6f}  1  {v:12.6e}\n")
+
+
+
+@dataclass
+class InitialConditions:
+    """
+    Initial conditions (rel_sat.ini or similar)
+    """
+    pressure_field: np.ndarray = field(default_factory=lambda: np.array([]))  # (n_layers, n_cols)
+    saturation_field: np.ndarray = field(default_factory=lambda: np.array([]))
+    
+    @classmethod
+    def from_file(cls, filepath: str, n_layers: int, n_cols: int) -> 'InitialConditions':
+        """
+        Parse initial conditions file
+        Can be pressure head or saturation
+        """
+        path = Path(filepath)
+        if not path.exists():
+            raise FileNotFoundError("HERE ALSO")
+            return cls()
+        
+        try:
+            with open(path, 'r') as f:
+                lines = f.readlines()
+            
+            # Skip header
+            data = []
+            for line in lines:
+                if line.strip() and not line.strip().startswith('%'):
+                    try:
+                        data.extend([float(x) for x in line.split()])
+                    except:
+                        pass
+            
+            if len(data) >= n_layers * n_cols:
+                field = np.array(data[:n_layers * n_cols]).reshape(n_layers, n_cols)
+                return cls(pressure_field=field)
+            
+        except Exception as e:
+            print(f"⚠ Error parsing initial conditions: {e}")
+        
+        return cls()

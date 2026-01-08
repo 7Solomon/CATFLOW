@@ -1,4 +1,3 @@
-
 from dataclasses import dataclass, field
 from pathlib import Path
 import numpy as np
@@ -8,6 +7,7 @@ class SurfaceProperties:
     """
     Surface node properties (surface.pob)
     Assigns land use, vegetation, and surface characteristics
+    HOW rough is a Node
     """
     # Fixed integer codes for each surface node
     fixed_codes: np.ndarray = field(default_factory=lambda: np.array([]))  # Shape: (n_cols, 3)
@@ -19,7 +19,7 @@ class SurfaceProperties:
     wind_factors: np.ndarray = field(default_factory=lambda: np.array([]))  # Shape: (n_cols, n_directions)
     
     # Horizon angles (optional)
-    horizon_angles: np.ndarray = field(default_factory=lambda: np.array([]))  # Shape: (n_cols, n_angles)
+    #horizon_angles: np.ndarray = field(default_factory=lambda: np.array([]))  # Shape: (n_cols, n_angles)
     
     @classmethod
     def from_file(cls, filepath: str, n_cols: int) -> 'SurfaceProperties':
@@ -29,13 +29,7 @@ class SurfaceProperties:
         """
         path = Path(filepath)
         if not path.exists():
-            raise FileNotFoundError("HERE SURFACE")
-
-            # Create default: all nodes land use 1, no special codes
-            return cls(
-                fixed_codes=np.zeros((n_cols, 3), dtype=int),
-                land_use_ids=np.ones(n_cols, dtype=int)
-            )
+            raise FileNotFoundError("surface file stuff is not Existing")
         
         try:
             with open(path, 'r') as f:
