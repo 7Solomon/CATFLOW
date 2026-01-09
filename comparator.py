@@ -1,16 +1,12 @@
 import difflib
 from pathlib import Path
-from typing import List, Dict, Set
+from typing import List, Dict, Optional, Tuple
+import re
 
 class CATFLOWComparator:
-    """
-    Compares two CATFLOW project folders to identify differences in configuration and data files.
-    """
-    
     def __init__(self, folder_a: str, folder_b: str):
         self.a = Path(folder_a).resolve()
         self.b = Path(folder_b).resolve()
-        self.report = []
 
     def compare(self):
         print(f"\n{'='*70}")
@@ -20,33 +16,44 @@ class CATFLOWComparator:
         print(f"Source B (New):    {self.b}\n")
         
         # 1. Compare Run Files
-        run_file_a = self._find_run_file(self.a)
-        run_file_b = self._find_run_file(self.b)
+        run_a = self._find_run_file(self.a)
+        run_b = self._find_run_file(self.b)
         
-        if run_file_a and run_file_b:
-            print(f"Comparing Run Files: {run_file_a.name} vs {run_file_b.name}")
-            self._compare_files(run_file_a, run_file_b)
-        else:
-            print("⚠ Could not pair run files for comparison.")
+        if not run_a or not run_b:
+            print("⚠ Could not find run_01.in in one or both folders.")
+            return
 
-        # 2. Compare Common Input Files
-        # We look for files with same relative paths or names
-        files_a = self._map_files(self.a)
-        files_b = self._map_files(self.b)
+        print(f"Comparing Run Control: {run_a.name} vs {run_b.name}")
+        self._compare_files(run_a, run_b)
         
-        all_keys = sorted(set(files_a.keys()) | set(files_b.keys()))
+        # 2. Build Role Map (Functional Comparison)
+        # We parse the run files to find what 'geo', 'bod', etc. correspond to
+        roles_a = self._parse_run_roles(run_a)
+        roles_b = self._parse_run_roles(run_b)
         
-        print("\nComparing Input Files:")
-        for key in all_keys:
-            path_a = files_a.get(key)
-            path_b = files_b.get(key)
+        all_roles = sorted(set(roles_a.keys()) | set(roles_b.keys()))
+        
+        print("\nComparing Simulation Files (by Role):")
+        for role in all_roles:
+            path_a = roles_a.get(role)
+            path_b = roles_b.get(role)
+            
+            # Label for display (e.g., "Hill 1 Geometry")
+            label = role.replace('_', ' ').title()
             
             if path_a and path_b:
-                self._compare_files(path_a, path_b, label=key)
+                # Resolve full paths
+                full_a = self.a / path_a
+                full_b = self.b / path_b
+                
+                if full_a.exists() and full_b.exists():
+                    self._compare_files(full_a, full_b, label=f"{label} ({path_b.name})")
+                else:
+                    print(f" ⚠ File missing on disk for {label}")
             elif path_a:
-                print(f"  ❌ {key} missing in New project")
+                print(f" ❌ {label} missing in New project (Old: {path_a})")
             elif path_b:
-                print(f"  ➕ {key} added in New project")
+                print(f" ➕ {label} added in New project (New: {path_b})")
 
     def _find_run_file(self, folder: Path) -> Path:
         # Check CATFLOW.IN first
@@ -61,46 +68,119 @@ class CATFLOWComparator:
         matches = list(folder.glob("run_*.in"))
         return matches[0] if matches else None
 
-    def _map_files(self, folder: Path) -> Dict[str, Path]:
-        """Maps simplified filenames to full paths for comparison"""
-        mapping = {}
-        for f in folder.rglob("*"):
-            if f.is_file() and f.suffix in ['.in', '.geo', '.def', '.bod', '.prt', '.rb', '.pob']:
-                if f.name.lower() == 'catflow.in': continue
-                # Use filename as key to handle directory structure changes
-                mapping[f.name.lower()] = f
-        return mapping
+    def _parse_run_roles(self, run_file: Path) -> Dict[str, Path]:
+        """
+        Parses run_01.in to map functional roles to file paths.
+        Returns dict: {'global_soil': Path(...), 'hill_1_geo': Path(...), ...}
+        """
+        roles = {}
+        with open(run_file, 'r') as f:
+            # Clean lines
+            lines = [l.split('%')[0].strip() for l in f if l.split('%')[0].strip()]
+            
+        # We need to find the file block again.
+        # Heuristic: Find output block, jump over it.
+        idx = 0
+        n_outputs = 0
+        for i, line in enumerate(lines):
+            if i>0 and len(line)>5 and all(c in '01 ' for c in line): # Flags line
+                 if lines[i-1].isdigit():
+                     n_outputs = int(lines[i-1])
+                     idx = i - 1
+                     break
+        
+        if idx == 0: return {} # Failed to parse
+        
+        # Jump to Globals
+        idx += 1 + 1 + n_outputs
+        
+        # Global Files
+        # 1. Count (skip)
+        idx += 1 
+        roles['global_soil'] = Path(lines[idx]); idx += 1
+        roles['global_time'] = Path(lines[idx]); idx += 1
+        roles['global_landuse'] = Path(lines[idx]); idx += 1
+        roles['global_wind'] = Path(lines[idx]); idx += 1
+        
+        # Hills
+        n_hills = abs(int(lines[idx])); idx += 1
+        
+        for h in range(n_hills):
+            prefix = f"hill_{h+1}"
+            roles[f'{prefix}_geo'] = Path(lines[idx]); idx += 1
+            roles[f'{prefix}_bod'] = Path(lines[idx]); idx += 1
+            roles[f'{prefix}_kstat'] = Path(lines[idx]); idx += 1
+            roles[f'{prefix}_thstat'] = Path(lines[idx]); idx += 1
+            roles[f'{prefix}_mak'] = Path(lines[idx]); idx += 1
+            roles[f'{prefix}_cv'] = Path(lines[idx]); idx += 1
+            roles[f'{prefix}_ini'] = Path(lines[idx]); idx += 1
+            roles[f'{prefix}_prt'] = Path(lines[idx]); idx += 1
+            roles[f'{prefix}_pob'] = Path(lines[idx]); idx += 1
+            roles[f'{prefix}_rb'] = Path(lines[idx]); idx += 1
+            
+        return roles
+
+    def _tokenize_line(self, line: str) -> List[str]:
+        # Remove comments
+        clean = line.split('%')[0].split('#')[0].strip()
+        if not clean: return []
+        
+        # Split tokens
+        raw_tokens = clean.split()
+        normalized = []
+        
+        for t in raw_tokens:
+            try:
+                # Try to parse as float
+                val = float(t)
+                # Format consistently: 6 decimal places scientific
+                # This makes 1.00 and 1.0 equal string wise for diff
+                normalized.append(f"{val:.6e}")
+            except ValueError:
+                # Keep as string (e.g. 'pic', 'Laubwald')
+                # Remove quotes for comparison
+                normalized.append(t.replace("'", "").replace('"', ""))
+                
+        return normalized
 
     def _compare_files(self, file_a: Path, file_b: Path, label: str = None):
-        """Intelligent comparison of two text files"""
         try:
-            with open(file_a, 'r') as f: lines_a = [l.strip() for l in f.readlines() if l.strip()]
-            with open(file_b, 'r') as f: lines_b = [l.strip() for l in f.readlines() if l.strip()]
+            with open(file_a, 'r') as f: lines_a = f.readlines()
+            with open(file_b, 'r') as f: lines_b = f.readlines()
         except:
             print(f"  ⚠ Could not read files for {label or file_a.name}")
             return
 
         name = label or file_a.name
         
-        # Simple exact check
-        if lines_a == lines_b:
-            print(f"  ✅ {name}: Identical")
+        # Preprocess lines
+        tok_a = [self._tokenize_line(l) for l in lines_a]
+        tok_b = [self._tokenize_line(l) for l in lines_b]
+        
+        # Remove empty lines
+        tok_a = [t for t in tok_a if t]
+        tok_b = [t for t in tok_b if t]
+        
+        # Compare token streams
+        if tok_a == tok_b:
+            print(f"  ✅ {name}: Semantically Identical")
             return
 
-        # Detailed Diff
-        diff = list(difflib.unified_diff(lines_a, lines_b, n=0))
-        # Filter out comment differences usually starting with %
-        significant_diffs = [d for d in diff if not (d.startswith('---') or d.startswith('+++') or d.startswith('@@'))]
-
-        if len(significant_diffs) > 0:
-            print(f"  ⚠️ {name}: {len(significant_diffs)} differences found")
-            # Print first 3 diffs
-            for d in significant_diffs[:20]:
-                prefix = "OLD: " if d.startswith('-') else "NEW: "
-                print(f"      {prefix}{d[1:].strip()}")
-            if len(significant_diffs) > 20:
-                print("      ...")
-                print("TO MANY")
-        else:
-            print(f"  ✅ {name}: Content matches (ignoring whitespace/comments)")
-
+        # If not identical, find first difference
+        diffs = 0
+        max_diffs_to_show = 3
+        
+        print(f"  ⚠️ {name}: Content differs")
+        
+        # Compare line by line (best effort matching)
+        limit = min(len(tok_a), len(tok_b))
+        for i in range(limit):
+            if tok_a[i] != tok_b[i]:
+                diffs += 1
+                if diffs <= max_diffs_to_show:
+                    print(f"    Line {i+1} mismatch:")
+                    print(f"      OLD: {tok_a[i]}")
+                    print(f"      NEW: {tok_b[i]}")
+        
+        if len(tok_a) != len(tok_b):
+            print(f"    Line count mismatch: {len(tok_a)} vs {len(tok_b)}")

@@ -4,8 +4,8 @@ import shutil
 from pathlib import Path
 from comparator import CATFLOWComparator
 from diagnostic import CATFLOWDiagnostic
-from model.project import CATFLOWProject
 from model.outputs import SimulationResults
+from model.project import CATFLOWProject
 
 def RUN():
     base_data_folder = "ft_backend" 
@@ -24,10 +24,9 @@ def diagnose():
     #results = diagnostic.run_full_diagnostic()
     #sys.exit(len(results['errors']))
     project = CATFLOWProject.from_legacy_folder("IN_TEMPLATE")
-    project.summary()
+    #project.summary()
     project.write_to_folder("ft_backend")
     
-
     comp = CATFLOWComparator("IN_TEMPLATE", "ft_backend")
     comp.compare()
 

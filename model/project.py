@@ -1,518 +1,343 @@
-import numpy as np
 import pickle
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, Any, Optional, List
-import re
+from typing import List, Optional, Dict
+import numpy as np
 
+from model.inputs.boundaries.initital import InitialState
+from model.inputs.boundaries.map import BoundaryMap
 from model.config import GlobalConfig, RunControl
-from model.inputs.boundaries.conditions import ForcingData, InitialConditions
-from model.inputs.boundaries.definitions import BoundaryDefinition
-from model.inputs.landuse.landuse import LandUseDefinition
+from model.heterogeneity import HeterogeneityMap
+from model.inputs.assigments.macropores import MacroporeDef
+from model.inputs.assigments.soil import SoilAssignment
+from model.inputs.assigments.surface import SurfaceAssignment
+from model.inputs.controll_volume import ControlVolumeDef
+from model.inputs.forcing.configuration import ForcingConfiguration
+from model.inputs.land_use import LandUseLibrary
 from model.inputs.mesh import HillslopeMesh
-from model.inputs.soil import SoilProfile
-from model.inputs.surface.surface import SurfaceProperties
-from model.outputs import SimulationResults
+from model.inputs.soil import SoilLibrary
+from model.inputs.wind import WindLibrary
 from model.printout import PrintoutTimes
-from utils import create_minimal_required_files
-
 
 
 @dataclass
-class CATFLOWProject:
+class Hill:
+    id: int
+    name: str = "Hill 1"
+    
+    # 1. Geometry (Master definition)
+    mesh: Optional[HillslopeMesh] = None            # hang1.geo
+    cv_def: Optional[ControlVolumeDef] = None
 
+    
+    # 2. Spatial Assignments (Map IDs to Nodes)
+    soil_map: Optional[SoilAssignment] = None       # soil_horizons.bod
+    surface_map: Optional[SurfaceAssignment] = None # surface.pob
+    macropores: Optional[MacroporeDef] = None       # profil.mak
+    boundary: Optional[BoundaryMap] = None          # boundary.rb
+    
+    # 3. Heterogeneity Scaling (The _1515.dat files)
+    k_scaling: Optional[HeterogeneityMap] = None    # kstat_1515.dat
+    theta_scaling: Optional[HeterogeneityMap] = None # thstat_1515.dat
+    
+    # 4. State & Output
+    initial_cond: Optional[InitialState] = None     # rel_sat.ini
+    printout: Optional[PrintoutTimes] = None        # printout.prt
+    
+    # 5. Aux (Control Volume)
+    # cv_def: Optional[ControlVolumeDef] = None     # cont_vol.cv NOT IMPLEMENTED
+
+@dataclass
+class CATFLOWProject:
     name: str = "New Project"
     
-    # Core components
-    mesh: Optional[HillslopeMesh] = None
-    soils: Optional[SoilProfile] = None
+    # --- GLOBAL CONTROL ---
+    config: Optional[GlobalConfig] = None          # CATFLOW.IN
+    run_control: Optional[RunControl] = None       # run_01.in (Time, Physics settings)
     
-    #Boundaries
-    boundary: Optional[BoundaryDefinition] = None
-    forcing: Optional[ForcingData] = None
-    initial: Optional[InitialConditions] = None
+    # --- GLOBAL LIBRARIES (Shared by all hills) ---
+    soil_library: Optional[SoilLibrary] = None     # soils.def
+    forcing: Optional[ForcingConfiguration] = None # timeser.def
+    land_use_library: Optional[LandUseLibrary] = None # lu_file.def
+    wind_library: Optional[WindLibrary] = None     # winddir.def
+    
+    # --- SPATIAL DOMAINS ---
+    hills: List[Hill] = field(default_factory=list)
 
-    surface: Optional[SurfaceProperties] = None
-    land_use: Optional[LandUseDefinition] = None
-    printout: Optional[PrintoutTimes] = None
-    
-    # Simulation Control
-    settings: Dict[str, RunControl | GlobalConfig] = field(default_factory=dict)
-    _legacy_paths: Dict[str, str] = field(default_factory=dict)
-    
-    
-    results: Optional[SimulationResults] = None
-
-    def save(self, filename: str):
-        """Binary save of entire project state"""
+    def save_binary(self, filename: str):
+        """Quick binary save of full python state"""
         with open(f"{filename}.pkl", 'wb') as f:
             pickle.dump(self, f)
-        print(f"✓ Project saved to {filename}")
+        print(f"✓ Project saved to {filename}.pkl")
 
     @classmethod
-    def load(cls, filename: str) -> 'CATFLOWProject':
-        """Binary load"""
+    def load_binary(cls, filename: str) -> 'CATFLOWProject':
         with open(f"{filename}.pkl", 'rb') as f:
             return pickle.load(f)
 
     @classmethod
-    def from_legacy_folder(cls, folder_path: str, run_file: str = "run_01.in") -> 'CATFLOWProject':
+    def from_legacy_folder(cls, folder_path: str, run_filename: str = "run_01.in") -> 'CATFLOWProject':
         """
-        Enhanced loader with better error handling and file discovery
+        Parses a legacy CATFLOW folder structure.
+        Crucially, this uses STRICT POSITIONAL PARSING for run_01.in,
         """
         folder = Path(folder_path).resolve()
         project = cls(name=folder.name)
         
-        print(f"\n{'='*60}")
-        print(f"Loading CATFLOW Project from: {folder}")
-        print(f"{'='*60}\n")
+        print(f"Loading Project from: {folder}")
+
+        # 1. Global Config (CATFLOW.IN)
+        if (folder / "CATFLOW.IN").exists():
+            project.config = GlobalConfig.from_file(str(folder / "CATFLOW.IN"))
         
-        # ═════════════════════════════════════════════════════════════
-        # STEP 1: Resolve Run File
-        # ═════════════════════════════════════════════════════════════
-        run_path = folder / run_file
-        
+        # 2. Run Control (Parameters only)
+        run_path = folder / run_filename
         if not run_path.exists():
-            # Check CATFLOW.IN
-            control_file = folder / "CATFLOW.IN"
-            if control_file.exists():
-                try:
-                    with open(control_file) as f:
-                        run_file_name = f.readline().split()[0].strip()
-                        run_path = folder / run_file_name
-                        print(f"→ Using run file from CATFLOW.IN: {run_file_name}")
-                except Exception as e:
-                    print(f"⚠ Could not read CATFLOW.IN: {e}")
-        
-        if not run_path.exists():
-            raise FileNotFoundError(f"Run file not found: {run_file}")
-        
-        print(f"✓ Found run file: {run_path.name}\n")
-        
-        # ═════════════════════════════════════════════════════════════
-        # STEP 2: Parse Run File
-        # ═════════════════════════════════════════════════════════════
-        try:
-            with open(run_path, 'r') as f:
-                lines = [l.rstrip() for l in f.readlines()]
-        except Exception as e:
-            raise IOError(f"Could not read run file: {e}")
-        
-        # Extract settings from header
-        try:
-            project.settings.update({
-               'start_time': lines[0].split('%')[0].strip(),
-                'end_time': lines[1].split('%')[0].strip(),
-                'offset': float(lines[2].split('%')[0]),
-                'method': lines[3].split('%')[0].strip(),
-                'dtbach': float(lines[4].split('%')[0]),
-                'qtol': float(lines[5].split('%')[0]),
-                'dt_max': float(lines[6].split('%')[0]),
-                'dt_min': float(lines[7].split('%')[0]),
-                'dt_init': float(lines[8].split('%')[0])
-            })
-            print("✓ Parsed simulation settings")
-        except (IndexError, ValueError) as e:
-            raise ValueError(f"Run file header is malformed: {e}")
-        
-        # ═════════════════════════════════════════════════════════════
-        # STEP 3: Discover File Paths
-        # ═════════════════════════════════════════════════════════════
-        paths = {}
-        file_patterns = {
-            'geo': [r'\.geo$', r'hillgeo', r'hang'],
-            'soils_def': [r'soils\.def$'],
-            'soils_bod': [r'horizons?\.bod$', r'boden\.dat$'],
-            'timeser': [r'timeser', r'rainfall', r'niederschlag'],
-            'printout': [r'printout\.prt$'],
-            'surface': [r'surface\.pob$'],
-            'boundary': [r'boundary\.rb$'],
-            'lu_file': [r'lu_file\.def$', r'landuse'],
-            'winddir': [r'winddir\.def$'],
-            'initial': [r'\.ini$', r'rel_sat']
-        }
-        
-        # Search run file for paths
-        for line in lines:
-            clean = line.split('%')[0].strip()
+            raise FileNotFoundError(f"Run file missing: {run_path}")
             
-            # Skip if not a path
-            if not clean or len(clean) < 4:
-                continue
-            if not ('/' in clean or '\\' in clean or '.' in clean):
-                continue
+        # Load parameters (Time, dt, etc.)
+        project.run_control = RunControl.from_file(str(run_path))
+        
+        # 3. Parse File Paths from run_01.in (Strict Order)
+        # We re-read the file to get the paths in the correct loop order
+        with open(folder / run_filename, 'r') as f:
+            raw_lines = [l.split('%')[0].strip() for l in f if l.split('%')[0].strip()]
+
+        # 1. FIND THE SYNC POINT (End of Output Files)
+        # We don't rely on matching a number. We look for the structure.
+        # Structure: [Count] -> [Flags] -> [Files...] -> [Next Count]
+        
+        idx = 0
+        n_outputs = 0
+        
+        # Scan for the output block signature
+        for i, line in enumerate(raw_lines):
+            # Look for the flags line (e.g., "0 1 1 0...")
+            # It's unique because it's a long sequence of 0s and 1s
+            if i > 0 and len(line) > 5 and all(c in '01 ' for c in line):
+                # If this is the flags line, the previous line MUST be the count
+                if raw_lines[i-1].isdigit():
+                    n_outputs = int(raw_lines[i-1])
+                    idx = i - 1 # Set index to the count line
+                    print(f"DEBUG: Found output block at line {idx} with {n_outputs} files")
+                    break
+        
+        # Jump over the output block
+        # Count(1) + Flags(1) + Files(n_outputs)
+        idx += 1 + 1 + n_outputs
+        
+        # NOW we are exactly at "n_global_inputs"
+        print(f"DEBUG: Reading Global Input Count at line {idx}: '{raw_lines[idx]}'")
+        
+        # 2. Parse Globals
+        n_global_inputs = int(raw_lines[idx]); idx += 1
+        
+        # Helper to get full path
+        def fpath(rel): return str(folder / rel)
+        
+        # Global 1: Soils
+        p_soils = raw_lines[idx]; idx += 1
+        print("  Loading Soil Library...")
+        project.soil_library = SoilLibrary.from_file(fpath(p_soils))
+        
+        # Global 2: Forcing
+        p_time = raw_lines[idx]; idx += 1
+        print("  Loading Forcing Config...")
+        project.forcing = ForcingConfiguration.from_file(fpath(p_time))
+        
+        # Global 3: Land Use
+        p_lu = raw_lines[idx]; idx += 1
+        print("  Loading Land Use Library...")
+        project.land_use_library = LandUseLibrary.from_file(fpath(p_lu))
+        
+        # Global 4: Wind
+        p_wind = raw_lines[idx]; idx += 1
+        print("  Loading Wind Library...")
+        project.wind_library = WindLibrary.from_file(fpath(p_wind))
+        
+        # Hill Loop Count
+        n_hills_raw = int(raw_lines[idx]); idx += 1
+        n_hills = abs(n_hills_raw)
+        
+        print(f"  Found {n_hills} Hill(s)...")
+        
+        for h_i in range(n_hills):
+            hill = Hill(id=h_i+1)
             
-            # Match against patterns
-            for key, patterns in file_patterns.items():
-                for pattern in patterns:
-                    if re.search(pattern, clean, re.IGNORECASE):
-                        full_path = folder / clean
-                        if key not in paths:  # First match wins
-                            paths[key] = full_path
-                        break
-        
-        project._legacy_paths = {k: str(v) for k, v in paths.items()}
-        
-        # Report findings
-        print("\nDiscovered files:")
-        for key, path in sorted(paths.items()):
-            exists = "✓" if path.exists() else "✗ MISSING"
-            print(f"  {exists} {key:12s}: {path.relative_to(folder)}")
-        
-        # ═════════════════════════════════════════════════════════════
-        # STEP 4: Validate Required Files
-        # ═════════════════════════════════════════════════════════════
-        required = ['geo', 'soils_def', 'soils_bod']
-        missing = []
-        
-        for key in required:
-            if key not in paths:
-                missing.append(f"  ✗ {key}: not referenced in run file")
-            elif not paths[key].exists():
-                missing.append(f"  ✗ {key}: file not found at {paths[key]}")
-        
-        if missing:
-            error_msg = "\n".join(["\n❌ MISSING REQUIRED FILES:"] + missing)
-            error_msg += "\n\nCannot proceed without geometry and soil files."
-            raise FileNotFoundError(error_msg)
-        
-        print("\n✓ All required files found\n")
-        
-        # ═════════════════════════════════════════════════════════════
-        # STEP 5: Load Components
-        # ═════════════════════════════════════════════════════════════
-        print("Loading components...")
-        
-        # Load mesh
-        try:
-            print("  [1/3] Loading mesh...")
-            project.mesh = HillslopeMesh.from_file(str(paths['geo']))
-            print(f"        → {project.mesh.n_layers} layers × {project.mesh.n_columns} columns")
-        except Exception as e:
-            raise ValueError(f"Failed to load geometry: {e}")
-        
-        # Load soils
-        try:
-            print("  [2/3] Loading soils...")
-            project.soils = SoilProfile.from_files(
-                str(paths['soils_def']), 
-                str(paths['soils_bod'])
-            )
+            # 1. Geometry
+            p_geo = raw_lines[idx]; idx += 1
+            print(f"    [Hill {h_i+1}] Mesh: {p_geo}")
+            hill.mesh = HillslopeMesh.from_file(fpath(p_geo))
             
-            # Validate and reshape
-            if project.soils.assignment_matrix.size > 0:
-                needed = project.mesh.n_layers * project.mesh.n_columns
-                
-                if project.soils.assignment_matrix.size == needed:
-                    project.soils.assignment_matrix = project.soils.assignment_matrix.reshape(
-                        project.mesh.n_layers, project.mesh.n_columns
-                    )
-                    print(f"        → Soil matrix reshaped to match mesh")
-                else:
-                    print(f"        ⚠ WARNING: Soil matrix size ({project.soils.assignment_matrix.size}) != mesh size ({needed})")
+            # Mesh dimensions needed for other files
+            nl, nc = hill.mesh.n_layers, hill.mesh.n_columns
             
-            # Validate soil data
-            issues = project.soils.validate(project.mesh.n_layers, project.mesh.n_columns)
-            if issues:
-                print("\n        Validation issues:")
-                for issue in issues:
-                    print(f"        {issue}")
+            # 2. Soil Map (.bod)
+            p_bod = raw_lines[idx]; idx += 1
+            hill.soil_map = SoilAssignment.from_file(fpath(p_bod), nl, nc)
             
-        except Exception as e:
-            raise ValueError(f"Failed to load soils: {e}")
-        
-        # Load forcing (optional)
-        try:
-            if 'timeser' in paths and paths['timeser'].exists():
-                print("  [3/3] Loading forcing data...")
-                project.forcing = ForcingData.from_file(str(paths['timeser']))
-                if not project.forcing.data.empty:
-                    print(f"        → {len(project.forcing.data)} time steps")
-            else:
-                print("  [3/3] No forcing file (optional)")
-        except Exception as e:
-            print(f"        ⚠ Error loading forcing: {e}")
-        
-        # Load Raw Optional Files
-        print("\n  Loading optional files...")
-        for key, target_attr in [
-            ('boundary', 'boundary_file'),
-            ('lu_file', 'landuse_file'),
-            ('printout', 'printout_file'),
-            ('surface', 'surface_file'),
-            ('winddir', 'winddir_file')
-        ]:
-            if key in paths and paths[key].exists():
-                try:
-                    print(f"    ✓ {key}")
-                    setattr(project, target_attr, RawTextFile.from_file(str(paths[key])))
-                except Exception as e:
-                    print(f"    ⚠ Error loading {key}: {e}")
-        
-        print(f"\n{'='*60}")
-        print(f"✓ Project loaded successfully")
-        print(f"{'='*60}\n")
-        
+            # 3. K-Stat (Heterogeneity)
+            p_kstat = raw_lines[idx]; idx += 1
+            hill.k_scaling = HeterogeneityMap.from_file(fpath(p_kstat))
+            
+            # 4. Th-Stat (Heterogeneity)
+            p_thstat = raw_lines[idx]; idx += 1
+            hill.theta_scaling = HeterogeneityMap.from_file(fpath(p_thstat))
+            
+            # 5. Macropores
+            p_mak = raw_lines[idx]; idx += 1
+            hill.macropores = MacroporeDef.from_file(fpath(p_mak), nl, nc)
+            
+            # 6. Control Volume
+            p_cv = raw_lines[idx]; idx += 1
+            hill.cv_def = ControlVolumeDef.from_file(fpath(p_cv))
+
+            # 7. Initial Conditions
+            p_ini = raw_lines[idx]; idx += 1
+            hill.initial_cond = InitialState.from_file(fpath(p_ini), nl, nc)
+            
+            # 8. Printout
+            p_prt = raw_lines[idx]; idx += 1
+            hill.printout = PrintoutTimes.from_file(fpath(p_prt))
+            
+            # 9. Surface Map
+            p_pob = raw_lines[idx]; idx += 1
+            hill.surface_map = SurfaceAssignment.from_file(fpath(p_pob), nc)
+            
+            # 10. Boundary Map
+            p_rb = raw_lines[idx]; idx += 1
+            hill.boundary = BoundaryMap.from_file(fpath(p_rb), nl, nc)
+            
+            project.hills.append(hill)
+            
+        print("✓ Project Loaded Successfully")
         return project
 
-    def write_to_folder(self, folder_path: str):
+    def write_to_folder(self, folder_path: str, source_folder: str = None):
         """
-        Enhanced export with all components
+        Reconstructs the full folder structure and files.
         """
         base = Path(folder_path)
         base.mkdir(parents=True, exist_ok=True)
         
-        print(f"\n{'='*60}")
-        print(f"Writing CATFLOW Project to: {base}")
-        print(f"{'='*60}\n")
+        print(f"Writing Project to {base}...")
         
-        # Define file structure
-        file_structure = {
-            'geo': 'in/hillgeo/hang1.geo',
-            'soils_def': 'in/soil/soils.def',
-            'soils_bod': 'in/soil/soil_horizons.bod',
-            'timeser': 'in/control/timeser.def',
-            'printout': 'in/control/printout.prt',
-            'surface': 'in/landuse/surface.pob',
-            'boundary': 'in/control/boundary.rb',
-            'lu_file': 'in/landuse/lu_file.def',
-            'winddir': 'in/climate/winddir.def',
-            'run': 'run_01.in'
-        }
-        
-        # Write core components
-        written_files = []
-        
-        if self.mesh:
-            print("  [1/5] Writing mesh...")
-            path = base / file_structure['geo']
-            path.parent.mkdir(parents=True, exist_ok=True)
-            self.mesh.to_file(str(path))
-            written_files.append(file_structure['geo'])
-        
-        if self.soils:
-            print("  [2/5] Writing soils...")
-            path = base / file_structure['soils_def']
-            path.parent.mkdir(parents=True, exist_ok=True)
-            self.soils.write_soils_def(str(path))
-            written_files.append(file_structure['soils_def'])
+        # 1. Write Global Config (CATFLOW.IN)
+        if self.config:
+            self.config.to_file(str(base / "CATFLOW.IN"))
             
-            if self.mesh:
-                path = base / file_structure['soils_bod']
-                path.parent.mkdir(parents=True, exist_ok=True)
-                self.soils.write_bod_file(str(path), self.mesh.n_layers, self.mesh.n_columns)
-                written_files.append(file_structure['soils_bod'])
+        # 2. Define Standard Global Paths
+        # These are the relative paths we will write into run_01.in
+        p_soils = "in/soil/soils.def"
+        p_time = "in/control/timeser.def"
+        p_lu = "in/landuse/lu_file.def"
+        p_wind = "in/climate/winddir.def"
         
+        # Ensure parent directories exist
+        (base / p_soils).parent.mkdir(parents=True, exist_ok=True)
+        (base / p_time).parent.mkdir(parents=True, exist_ok=True)
+        (base / p_lu).parent.mkdir(parents=True, exist_ok=True)
+        (base / p_wind).parent.mkdir(parents=True, exist_ok=True)
+
+        # 3. Write Global Libraries
+        # We explicitly call to_file() on each library object if it exists.
+        
+        if self.soil_library: 
+            self.soil_library.to_file(str(base / p_soils))
+            
         if self.forcing:
-            print("  [3/5] Writing forcing...")
-            path = base / file_structure['timeser']
-            path.parent.mkdir(parents=True, exist_ok=True)
-            self.forcing.to_file(str(path))
-            written_files.append(file_structure['timeser'])
-        
-        # Write Raw Optional Files
-        print("  [4/5] Writing optional files...")
-        if self.boundary_file:
-            path = base / file_structure['boundary']
-            path.parent.mkdir(parents=True, exist_ok=True)
-            self.boundary_file.to_file(str(path))
-            written_files.append(file_structure['boundary'])
-        if self.landuse_file:
-            path = base / file_structure['lu_file']
-            path.parent.mkdir(parents=True, exist_ok=True)
-            self.landuse_file.to_file(str(path))
-            written_files.append(file_structure['lu_file'])
-        if self.printout_file:
-            path = base / file_structure['printout']
-            path.parent.mkdir(parents=True, exist_ok=True)
-            self.printout_file.to_file(str(path))
-            written_files.append(file_structure['printout'])
-        if self.surface_file:
-            path = base / file_structure['surface']
-            path.parent.mkdir(parents=True, exist_ok=True)
-            self.surface_file.to_file(str(path))
-            written_files.append(file_structure['surface'])
-        if self.winddir_file:
-            path = base / file_structure['winddir']
-            path.parent.mkdir(parents=True, exist_ok=True)
-            self.winddir_file.to_file(str(path))
-            written_files.append(file_structure['winddir'])
-        
-        # Write minimal required files that may be missing
-        print("  [6/6] Creating required stub files...")
-        
-        # Ensure 'in' and subfolders exist for stubs too
-        (base / 'in/control').mkdir(parents=True, exist_ok=True)
-        (base / 'in/landuse').mkdir(parents=True, exist_ok=True)
-        (base / 'in/climate').mkdir(parents=True, exist_ok=True)
-        
-        create_minimal_required_files(base)
-        
-        # Write run file
-        print("  [7/7] Writing run configuration...")
-        self._write_run_file(base / file_structure['run'], file_structure)
-        
-        # Write CATFLOW.IN
-        with open(base / "CATFLOW.IN", "w") as f:
-            f.write(f"run_01.in                       2.0\n")
-        
-        print(f"\n✓ Exported {len(written_files)} files")
-        print(f"{'='*60}\n")
-
-
-    def _write_run_file(self, run_path: Path, file_map: Dict[str, str]):
-        """
-        Generate complete run file
-        """
-        s = self.settings
-        
-        # Date Handling: Preserve original string if available
-        # Ensure dates have time component
-        start = s.get('start_time', '01.01.2000 00:00:00.00')
-        end = s.get('end_time', '02.01.2000 00:00:00.00')
-        
-        if len(start) <= 10:
-            start += " 00:00:00.00"
-        if len(end) <= 10:
-            end += " 00:00:00.00"
-        
-        # Output files
-        outputs = [
-            ('out/log.out', 'Log file'),
-            ('out/bilanz.csv', 'Water balance'),
-            ('out/theta.out', 'Soil moisture'),
-            ('out/psi.out', 'Pressure head')
-        ]
-        
-        # Build file content
-        lines = [
-            f"{start}          % start time",
-            f"{end}          % end time",
-            f"        {s.get('offset', 0.0):.1f}                     % offset",
-            f"{s.get('method', 'pic'):<30s}% computation method",
-            f"       {s.get('dtbach', 3600.0):.1f}                    % dtbach [s]",
-            f"          {s.get('qtol', 1.e-6):.1e}                 % qtol",
-            f"      {s.get('dt_max', 3600.0):.2f}                    % dt_max [s]",
-            f"          {s.get('dt_min', 0.01):.2f}                  % dt_min [s]",
-            f"         {s.get('dt_init', 10.0):.2f}                  % dt [s] initial",
-            "          0.030                 % d_Th_opt",
-            "          0.030                 % d_Phi_opt",
-            "          5                     % n_gr",
-            "         12                     % it_max",
-            "          1.e-3                 % piceps",
-            "          5.e-6                 % cgeps",
-            "         15.0                    % rlongi",
-            "          9.746                 % longi",
-            "         47.35                  % lati",
-            "          0                     % istact (number of solutes)",
-            "        -80                     % Random seed",
+            # Forcing writes timeser.def AND all referenced .dat files
+            self.forcing.to_file(str(base / p_time))
             
-            "          0                          % interaction with drainage network (0=noiact)", 
+        if self.land_use_library:
+            self.land_use_library.to_file(str(base / p_lu))
+            # If we still rely on external .par files (haven't modeled them fully yet), copy them:
+            if source_folder:
+                src = Path(source_folder)
+                for lu in self.land_use_library.types:
+                    # Copy parameter files if they exist in source
+                    # lu.param_file might be "in/landuse/wiese.par"
+                    s = src / lu.param_file
+                    d = base / lu.param_file
+                    if s.exists():
+                        d.parent.mkdir(parents=True, exist_ok=True)
+                        import shutil
+                        shutil.copy2(s, d)
             
-            f"     {len(outputs)}                         % number of output files",
-        ]
+        if self.wind_library:
+            self.wind_library.to_file(str(base / p_wind))
+            
+        # 4. Write Hills
+        hill_file_lines = [] # Lines to append to run_01.in
         
-        # Output flags (all enabled) - Ensure Integer format!
-        lines.append('  ' + '  '.join(['1'] * len(outputs)))
+        # Hill count line (Negative means standard CATFLOW format)
+        hill_file_lines.append(f"          -{len(self.hills)}") 
         
-        # Output file paths
-        for path, desc in outputs:
-            lines.append(f"{path:<40}% {desc}")
-        
-        # Input files (in groups separated by -1)
-        input_groups = [
-            # Group 1
-            [file_map.get('soils_def', 'in/soil/soils.def'),
-             file_map.get('timeser', 'in/control/timeser.def'),
-             file_map.get('lu_file', 'in/landuse/lu_file.def'),
-             file_map.get('winddir', 'in/climate/winddir.def')],
-             
-            # Group 2
-            [file_map.get('geo', 'in/hillgeo/hang1.geo'),
-             file_map.get('soils_bod', 'in/soil/soil_horizons.bod')],
-             
-            # Group 3
-            [file_map.get('printout', 'in/control/printout.prt'),
-             file_map.get('surface', 'in/landuse/surface.pob'),
-             file_map.get('boundary', 'in/control/boundary.rb')]
-        ]
-        
-        for i, group in enumerate(input_groups):
-            # Ensure -1 is written as integer "-1", not float
-            count_val = len(group) if i == 0 else -1
-            lines.append(f"          {count_val}") 
-            for fpath in group:
-                lines.append(f"{fpath:<40}")
-        
-        with open(run_path, 'w') as f:
-            f.write('\n'.join(lines))
+        for i, hill in enumerate(self.hills):
+            prefix = f"in/hill_{i+1}"
+            (base / prefix).mkdir(parents=True, exist_ok=True)
+            
+            # Define standard filenames for this hill
+            # We enforce this naming convention for the new project structure
+            files = {
+                'geo': f"{prefix}/hang.geo",
+                'bod': f"{prefix}/soils.bod",
+                'kstat': f"{prefix}/kstat.dat",
+                'thstat': f"{prefix}/thstat.dat",
+                'mak': f"{prefix}/profil.mak",
+                'cv': f"{prefix}/control.cv",
+                'ini': f"{prefix}/initial.ini",
+                'prt': f"{prefix}/printout.prt",
+                'pob': f"{prefix}/surface.pob",
+                'rb': f"{prefix}/boundary.rb"
+            }
+            
+            # Write objects to files (Check existence first)
+            if hill.mesh: hill.mesh.to_file(str(base / files['geo']))
+            if hill.soil_map: hill.soil_map.to_file(str(base / files['bod']))
+            if hill.k_scaling: hill.k_scaling.to_file(str(base / files['kstat']))
+            if hill.theta_scaling: hill.theta_scaling.to_file(str(base / files['thstat']))
+            if hill.macropores: hill.macropores.to_file(str(base / files['mak']))
+            if hill.cv_def: hill.cv_def.to_file(str(base / files['cv']))
+            if hill.initial_cond: hill.initial_cond.to_file(str(base / files['ini']))
+            if hill.printout: hill.printout.to_file(str(base / files['prt']))
+            if hill.surface_map: hill.surface_map.to_file(str(base / files['pob']))
+            if hill.boundary: hill.boundary.to_file(str(base / files['rb']))
+            
+            # Append paths to the run file list (Order determines how Fortran reads them)
+            # The order MUST match the 'run_01.in' loop:
+            # Geo, Bod, Kstat, Thstat, Mak, CV, Ini, Prt, Pob, RB
+            hill_file_lines.append(files['geo'])
+            hill_file_lines.append(files['bod'])
+            hill_file_lines.append(files['kstat'])
+            hill_file_lines.append(files['thstat'])
+            hill_file_lines.append(files['mak'])
+            hill_file_lines.append(files['cv'])
+            hill_file_lines.append(files['ini'])
+            hill_file_lines.append(files['prt'])
+            hill_file_lines.append(files['pob'])
+            hill_file_lines.append(files['rb'])
 
-        # Write to file
-        with open(run_path, 'w') as f:
-            f.write('\n'.join(lines))
-    
-    def summary(self) -> str:
-        """
-        Print project summary
-        """
-        lines = []
-        lines.append(f"\nProject: {self.name}")
-        lines.append("=" * 60)
+        # 5. Write run_01.in
+        rc_path = str(base / "run_01.in")
         
-        if self.mesh:
-            lines.append(f"Mesh: {self.mesh.n_layers} layers × {self.mesh.n_columns} columns")
-            lines.append(f"      Width: {self.mesh.width:.2f} m")
-        
-        if self.soils:
-            lines.append(f"Soils: {len(self.soils.soil_definitions)} types defined")
-            for s in self.soils.soil_definitions:
-                lines.append(f"  - {s['name']}: θs={s['theta_s']:.3f}, Ks={s['k_sat']:.2e} m/s")
-        
-        if self.forcing and not self.forcing.data.empty:
-            lines.append(f"Forcing: {len(self.forcing.data)} time steps")
-        
-        lines.append(f"\nSettings:")
-        lines.append(f"  Period: {self.settings.get('start_time')} → {self.settings.get('end_time')}")
-        lines.append(f"  Method: {self.settings.get('method')}")
-        lines.append(f"  dt_max: {self.settings.get('dt_max')} s")
-        
-        if self.results:
-            lines.append(f"\nResults: {len(self.results.water_balance)} time steps computed")
-        
-        lines.append("=" * 60)
-        
-        return '\n'.join(lines)
-    
+        # Ensure run_control exists
+        if not self.run_control:
+            # Should create a default one if missing, but raising error is safer
+            raise ValueError("Cannot write project: RunControl is missing.")
 
+        self.run_control.to_file(rc_path) # Writes header + params + output files
+        
+        # Now append the INPUT file section manually
+        with open(rc_path, 'a') as f:
+            f.write("\n\t  4\n") # Global file count (Always 4 in this structure)
+            f.write(f"{p_soils}\n")
+            f.write(f"{p_time}\n")
+            f.write(f"{p_lu}\n")
+            f.write(f"{p_wind}\n")
+            
+            for line in hill_file_lines:
+                f.write(f"{line}\n")
+        
+        print("✓ Export Complete")
 
-
-##################################################################################################################
-##################################################################################################################
-##################################################################################################################
-
-@dataclass
-class CATFLOWProject:
-    name: str
-    
-    # 1. Control
-    config: GlobalConfig          # CATFLOW.IN
-    run_control: RunControl       # run_01.in
-    
-    # 2. Physics & Geometry
-    mesh: HillslopeMesh           # hang1.geo
-    soils: SoilProfile            # soils.def + .bod
-    macropores: Optional[Macropores] # profil.mak (New)
-    
-    # 3. Conditions
-    initial: InitialConditions    # rel_sat.ini
-    boundary: BoundaryDefinition  # boundary.rb
-    forcing: ForcingData          # timeser.def
-
-    
-    # 4. Surface & Atmosphere
-    surface: SurfaceProperties    # surface.pob
-    land_use: LandUseDefinition   # lu_file.def
-    wind: WindDirection           # winddir.def (New)
-    
-    # 5. Output Config
-    printout: PrintoutTimes       # printout.prt

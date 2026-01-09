@@ -2,38 +2,56 @@
 01.02.2004 00:00:00.00          % end time
         0.0                     % offset
 pic                           % computation method
-       3600.0                    % dtbach [s]
+       3600.0                    % dtbach
           1.0e-06                 % qtol
-      86400.00                    % dt_max [s]
-          0.01                  % dt_min [s]
-         10.00                  % dt [s] initial
+      86400.00                    % dt_max
+          0.01                  % dt_min
+         10.00                  % dt_init
           0.030                 % d_Th_opt
           0.030                 % d_Phi_opt
           5                     % n_gr
          12                     % it_max
-          1.e-3                 % piceps
-          5.e-6                 % cgeps
+          1.0e-03                 % piceps
+          5.0e-06                 % cgeps
          15.0                    % rlongi
           9.746                 % longi
          47.35                  % lati
-          0                     % istact (number of solutes)
+          0                     % istact
         -80                     % Random seed
-          0                          % interaction with drainage network (0=noiact)
-     4                         % number of output files
-  1  1  1  1
-out/log.out                             % Log file
-out/bilanz.csv                          % Water balance
-out/theta.out                           % Soil moisture
-out/psi.out                             % Pressure head
-          4
-in/soil/soils.def                       
-in/control/timeser.def                  
-in/landuse/lu_file.def                  
-in/climate/winddir.def                  
+noiact                         % interaction (0=noiact)
+     18                         % number of output files
+ 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1
+out/log.out                             % Output
+out/vg_tab.out                          % Output
+out/bilanz.csv                          % Output
+out/theta.out                           % Output
+out/psi.out                             % Output
+out/psi.fin                             % Output
+out/fl_xsi.out                          % Output
+out/fl_eta.out                          % Output
+out/senken.out                          % Output
+out/qoben.out                           % Output
+out/evapo.out                           % Output
+out/gang.out                            % Output
+out/ve.out                              % Output
+out/vx.out                              % Output
+out/c.out                               % Output
+out/hko.out                             % Output
+out/sko.out                             % Output
+out/relsat.out                          % Output
+	  4
+in/soil/soils.def
+in/control/timeser.def
+in/landuse/lu_file.def
+in/climate/winddir.def
           -1
-in/hillgeo/hang1.geo                    
-in/soil/soil_horizons.bod               
-          -1
-in/control/printout.prt                 
-in/landuse/surface.pob                  
-in/control/boundary.rb                  
+in/hill_1/hang.geo
+in/hill_1/soils.bod
+in/hill_1/kstat.dat
+in/hill_1/thstat.dat
+in/hill_1/profil.mak
+in/hill_1/control.cv
+in/hill_1/initial.ini
+in/hill_1/printout.prt
+in/hill_1/surface.pob
+in/hill_1/boundary.rb
