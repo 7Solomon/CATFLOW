@@ -1,4 +1,4 @@
-import { Clock, MapPin, FileText, Activity } from 'lucide-react';
+import { Clock, MapPin, Activity } from 'lucide-react';
 import type { FullProjectData } from '../../types';
 
 export const ConfigPanel = ({ project }: { project: FullProjectData }) => {

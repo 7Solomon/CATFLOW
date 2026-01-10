@@ -8,13 +8,14 @@ import { HillsPanel } from './components/panels/HillsPanel';
 // New imports
 import { ForcingPanel } from './components/panels/ForcingPanel';
 import { ExportPanel } from './components/panels/ExportPanel';
+import { ConfigPanel } from './components/panels/ConfigPanel';
 
 function App() {
   const { data: project, loading, error, loadProject } = useProject();
   const [activeTab, setActiveTab] = useState('overview');
 
   // Define tabs here for cleaner rendering
-  const tabs = ['overview', 'soil', 'hills', 'forcing', 'export'];
+  const tabs = ['overview', 'config', 'soil', 'hills', 'forcing', 'export'];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-8">
@@ -59,8 +60,8 @@ function App() {
                   key={tab}
                   onClick={() => setActiveTab(tab)}
                   className={`px-6 py-3 rounded-lg font-medium transition-all whitespace-nowrap ${activeTab === tab
-                      ? 'bg-blue-600 shadow-lg text-white'
-                      : 'hover:bg-slate-700/50 text-slate-300'
+                    ? 'bg-blue-600 shadow-lg text-white'
+                    : 'hover:bg-slate-700/50 text-slate-300'
                     }`}
                 >
                   {tab.charAt(0).toUpperCase() + tab.slice(1)}
@@ -71,6 +72,7 @@ function App() {
             {/* Panel Rendering */}
             <div className="animate-in fade-in duration-300">
               {activeTab === 'overview' && <OverviewPanel project={project} />}
+              {activeTab === 'config' && <ConfigPanel project={project} />}
               {activeTab === 'soil' && <SoilPanel soils={project.soils} />}
               {activeTab === 'hills' && <HillsPanel hills={project.hills} />}
               {activeTab === 'forcing' && <ForcingPanel forcing={project.forcing} />}
