@@ -1,75 +1,83 @@
-import { Droplets, Wind, FileText, CheckCircle, AlertCircle } from 'lucide-react';
-import type { ForcingOverview } from '../../types';
+import { useState, useEffect } from 'react';
+import { CloudRain, Sun, Wind, Layers } from 'lucide-react';
+import { projectApi } from '../../api/client';
 
-export const ForcingPanel = ({ forcing }: { forcing: ForcingOverview }) => (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+export const ForcingPanel = ({ forcing }: { forcing: any }) => {
+    const [activeTab, setActiveTab] = useState<'precip' | 'climate' | 'landuse' | 'wind'>('precip');
+    const [windData, setWindData] = useState<any[]>([]);
+    const [timeline, setTimeline] = useState<any>(null);
 
-        {/* Precipitation Card */}
-        <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-700">
-            <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
-                <Droplets className="w-5 h-5 text-blue-400" />
-                Precipitation Data
-            </h3>
-            <div className="space-y-4">
-                <div className="flex items-end gap-2">
-                    <div className="text-4xl font-bold text-white">{forcing.n_precip_files}</div>
-                    <div className="text-sm text-slate-400 mb-1.5">Time series files loaded</div>
-                </div>
+    useEffect(() => {
+        if (activeTab === 'wind' && !windData.length) {
+            projectApi.fetchWindLibrary().then(setWindData);
+        }
+        if (activeTab === 'landuse' && !timeline) {
+            projectApi.fetchLandUseTimeline().then(setTimeline);
+        }
+    }, [activeTab]);
 
-                {/* File List */}
-                <div className="space-y-1 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
-                    {forcing.precip_filenames.length > 0 ? (
-                        forcing.precip_filenames.map((name, i) => (
-                            <div key={i} className="text-sm bg-slate-700/30 px-3 py-2 rounded flex items-center gap-2 text-slate-300 border border-slate-700/50">
-                                <FileText className="w-4 h-4 text-blue-400/70" />
-                                <span className="font-mono text-xs truncate">{name}</span>
+    return (
+        <div className="h-full flex flex-col">
+            {/* Tabs */}
+            <div className="flex border-b border-slate-700 mb-4">
+                {[
+                    { id: 'precip', label: 'Precipitation', icon: CloudRain },
+                    { id: 'climate', label: 'Climate', icon: Sun },
+                    { id: 'landuse', label: 'Land Use', icon: Layers },
+                    { id: 'wind', label: 'Wind', icon: Wind },
+                ].map(tab => (
+                    <button
+                        key={tab.id}
+                        onClick={() => setActiveTab(tab.id as any)}
+                        className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors ${activeTab === tab.id
+                                ? 'border-indigo-500 text-indigo-400'
+                                : 'border-transparent text-slate-400 hover:text-slate-200'
+                            }`}
+                    >
+                        <tab.icon size={16} />
+                        {tab.label}
+                    </button>
+                ))}
+            </div>
+
+            <div className="flex-1 overflow-auto">
+                {activeTab === 'precip' && (
+                    <div className="space-y-2">
+                        {forcing.precip_filenames.map((f: string, i: number) => (
+                            <div key={i} className="p-3 bg-slate-800 rounded flex justify-between">
+                                <span>{f}</span>
+                                <span className="text-xs text-slate-500 bg-slate-900 px-2 py-1 rounded">Index {i}</span>
                             </div>
-                        ))
-                    ) : (
-                        <div className="text-sm text-slate-500 italic">No precipitation files linked</div>
-                    )}
-                </div>
-            </div>
-        </div>
+                        ))}
+                    </div>
+                )}
 
-        {/* Climate Card */}
-        <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-700">
-            <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
-                <Wind className="w-5 h-5 text-cyan-400" />
-                Climate Data
-            </h3>
-            <div className="space-y-4">
-                <div className="flex items-end gap-2">
-                    <div className="text-4xl font-bold text-white">{forcing.n_climate_files}</div>
-                    <div className="text-sm text-slate-400 mb-1.5">Climate tables loaded</div>
-                </div>
-
-                {/* File List */}
-                <div className="space-y-1 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
-                    {forcing.climate_filenames.length > 0 ? (
-                        forcing.climate_filenames.map((name, i) => (
-                            <div key={i} className="text-sm bg-slate-700/30 px-3 py-2 rounded flex items-center gap-2 text-slate-300 border border-slate-700/50">
-                                <FileText className="w-4 h-4 text-cyan-400/70" />
-                                <span className="font-mono text-xs truncate">{name}</span>
+                {activeTab === 'landuse' && timeline && (
+                    <div className="space-y-4">
+                        <h3 className="text-slate-300 font-medium">Timeline Periods</h3>
+                        {timeline.periods.map((p: any, i: number) => (
+                            <div key={i} className="flex items-center gap-4 p-3 bg-slate-800/50 rounded border border-slate-700">
+                                <div className="w-24 text-right font-mono text-indigo-400">{p.time}s</div>
+                                <div className="h-px bg-slate-600 flex-1"></div>
+                                <div className="text-slate-300">{p.lookup_file}</div>
                             </div>
-                        ))
-                    ) : (
-                        <div className="text-sm text-slate-500 italic">No climate files linked</div>
-                    )}
-                </div>
-            </div>
-        </div>
+                        ))}
+                    </div>
+                )}
 
-        {/* Land Use Status (Full Width) */}
-        <div className="md:col-span-2 bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-700 flex items-center justify-between">
-            <div>
-                <h3 className="text-lg font-semibold text-white">Land Use Timeline</h3>
-                <p className="text-sm text-slate-400">Controls vegetation changes over simulation time</p>
-            </div>
-            <div className={`flex items-center gap-2 px-4 py-2 rounded-full border ${forcing.has_landuse_timeline ? 'bg-green-500/10 border-green-500/30 text-green-400' : 'bg-slate-700/30 border-slate-600 text-slate-400'}`}>
-                {forcing.has_landuse_timeline ? <CheckCircle className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-                <span className="text-sm font-medium">{forcing.has_landuse_timeline ? 'Configured' : 'Not Configured'}</span>
+                {activeTab === 'wind' && (
+                    <div className="grid grid-cols-2 gap-4">
+                        {windData.map((sector: any) => (
+                            <div key={sector.id} className="p-4 bg-slate-800 rounded border border-slate-700">
+                                <div className="text-lg font-bold text-white mb-1">Sector {sector.id}</div>
+                                <div className="text-sm text-slate-400 mb-2">{sector.angle_start}° - {sector.angle_end}°</div>
+                                <div className="text-xs uppercase tracking-wider text-slate-500">Exposure Factor</div>
+                                <div className="text-xl text-indigo-400">{sector.exposure_factor}</div>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
         </div>
-    </div>
-);
+    );
+};

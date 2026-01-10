@@ -5,6 +5,7 @@ export const HillsPanel = ({ hills }: { hills: Hill[] }) => {
     const [selectedHillId, setSelectedHillId] = useState<number | null>(hills[0]?.id || null);
     const selectedHill = hills.find(h => h.id === selectedHillId);
 
+
     return (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* List */}

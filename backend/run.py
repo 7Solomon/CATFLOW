@@ -13,7 +13,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-from api import project, hills, soil, forcing, export
+from api import project, hills, soil, forcing, export, wind, results
 from state import current_project
 
 app.include_router(project.router)
@@ -21,6 +21,8 @@ app.include_router(hills.router)
 app.include_router(soil.router)
 app.include_router(forcing.router)
 app.include_router(export.router)
+app.include_router(wind.router)
+app.include_router(results.router)
 
 @app.get("/")
 async def root():

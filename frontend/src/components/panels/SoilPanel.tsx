@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import type { SoilType } from '../../types';
+import { projectApi } from '../../api/client';
 
 export const SoilPanel = ({ soils }: { soils: SoilType[] }) => {
     const [expandedSoil, setExpandedSoil] = useState<number | null>(null);
@@ -29,17 +30,33 @@ export const SoilPanel = ({ soils }: { soils: SoilType[] }) => {
                             </button>
 
                             {expandedSoil === soil.id && (
-                                <div className="p-4 border-t border-slate-600 grid grid-cols-2 gap-3 text-sm text-slate-300">
-                                    <div>θ<sub>s</sub>: <span className="font-mono text-white">{soil.theta_s.toFixed(3)}</span></div>
-                                    <div>θ<sub>r</sub>: <span className="font-mono text-white">{soil.theta_r.toFixed(3)}</span></div>
-                                    <div>α: <span className="font-mono text-white">{soil.alpha.toFixed(4)}</span></div>
-                                    <div>n: <span className="font-mono text-white">{soil.n_param.toFixed(3)}</span></div>
+                                <div className="mt-4 p-4 bg-slate-900/50 rounded-lg">
+                                    <div className="p-4 border-t border-slate-600 grid grid-cols-2 gap-3 text-sm text-slate-300">
+                                        <div>θ<sub>s</sub>: <span className="font-mono text-white">{soil.theta_s.toFixed(3)}</span></div>
+                                        <div>θ<sub>r</sub>: <span className="font-mono text-white">{soil.theta_r.toFixed(3)}</span></div>
+                                        <div>α: <span className="font-mono text-white">{soil.alpha.toFixed(4)}</span></div>
+                                        <div>n: <span className="font-mono text-white">{soil.n_param.toFixed(3)}</span></div>
+                                    </div>
+
+                                    <div className="mt-4 border-t border-slate-700 pt-4">
+                                        <button
+                                            className="text-xs bg-indigo-500/20 text-indigo-400 px-3 py-1 rounded hover:bg-indigo-500/30 transition-colors"
+                                            onClick={async (e) => {
+                                                e.stopPropagation();
+                                                const curve = await projectApi.fetchSoilCurve(soil.id);
+                                                console.log("Curve Data:", curve);
+                                                alert(`Fetched ${curve.theta.length} points for ${soil.name}`);
+                                            }}
+                                        >
+                                            Generate Hydraulic Curve
+                                        </button>
+                                    </div>
                                 </div>
                             )}
                         </div>
                     ))}
                 </div>
             </div>
-        </div>
+        </div >
     );
 };

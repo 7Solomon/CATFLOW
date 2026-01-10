@@ -24,6 +24,46 @@ export const projectApi = {
         return { summary, config, soils, hills, forcing };
     },
 
+    fetchValidation: async () => {
+        const res = await fetch(`${API_BASE}/project/validation`);
+        return res.json();
+    },
+
+    fetchDimensions: async () => {
+        const res = await fetch(`${API_BASE}/project/dimensions`);
+        return res.json();
+    },
+
+    fetchWindLibrary: async () => {
+        const res = await fetch(`${API_BASE}/wind/library`);
+        return res.json();
+    },
+
+    fetchLandUseTimeline: async () => {
+        const res = await fetch(`${API_BASE}/forcing/landuse/timeline`);
+        return res.json();
+    },
+
+    fetchHillMap: async (hillId: number, mapType: 'soil-map' | 'surface-map' | 'boundary' | 'macropores') => {
+        const res = await fetch(`${API_BASE}/hills/${hillId}/${mapType}`);
+        return res.json();
+    },
+
+    fetchSoilCurve: async (soilId: number) => {
+        const res = await fetch(`${API_BASE}/soil/${soilId}/curves`);
+        return res.json();
+    },
+
+    fetchResultsAvailability: async () => {
+        const res = await fetch(`${API_BASE}/results/available`);
+        return res.json();
+    },
+
+    fetchWaterBalance: async () => {
+        const res = await fetch(`${API_BASE}/results/balance`);
+        return res.json();
+    },
+
     previewExport: async (target: string) => {
         const res = await fetch(`${API_BASE}/export/preview?target_folder=${target}`, {
             method: 'POST'
