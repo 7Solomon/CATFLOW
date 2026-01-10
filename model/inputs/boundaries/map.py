@@ -1,15 +1,6 @@
-from dataclasses import dataclass
-
 import numpy as np
-
-
-@dataclass
-class BoundaryBlock:
-    side: str # 'LEFT', 'RIGHT', 'TOP', 'BOTTOM', 'SINKS'  # MASSE
-    # For each node on this boundary, we assign a Type ID
-    # Indices correspond to the node index along that boundary
-    # e.g., LEFT/RIGHT have n_layers nodes; TOP/BOTTOM have n_columns nodes
-    indices: np.ndarray 
+from dataclasses import dataclass
+from typing import List, Optional
 
 @dataclass
 class BoundaryMap:
@@ -78,11 +69,9 @@ class BoundaryMap:
                     elif current_section == 'UNTEN': 
                         target_arr = bottom; limit = n_columns
                     elif current_section == 'SENKEN':
-                        limit = -1
+                        limit = -1 # Special case handled below
                     elif current_section == 'MASSE':
-                        print("Dont know what masses is!!!, bec careful just set to one")
-                        # MASSE is legacy solute mass, usually not stored in boundary map, i think
-                        # Just consume the lines
+                        # Consume lines and ignore
                         for _ in range(count): next(iterator)
                         continue
                     
@@ -95,23 +84,54 @@ class BoundaryMap:
                             # Sinks: v1 v2 h1 h2 id
                             if len(data) >= 5:
                                 v1, v2, h1, h2 = map(float, data[:4])
+                                
                                 if mode == 0:
-                                    r1, r2 = int(v1*n_layers), int(v2*n_layers)
-                                    c1, c2 = int(h1*n_columns), int(h2*n_columns)
-                                    # Clamp
-                                    r2, c2 = min(r2, n_layers), min(c2, n_columns)
-                                    sinks[r1:r2, c1:c2] = val_id
+                                    # --- FIX 1: Scaling Factor (N-1) ---
+                                    # Map relative coords (0-1) to indices using (N-1)
+                                    # v = Vertical = Rows (n_layers)
+                                    # h = Horizontal = Cols (n_columns)
                                     
+                                    r1 = int(v1 * (n_layers - 1))
+                                    r2 = int(v2 * (n_layers - 1))
+                                    c1 = int(h1 * (n_columns - 1))
+                                    c2 = int(h2 * (n_columns - 1))
+                                else:
+                                    # Absolute indices
+                                    r1, r2 = int(v1), int(v2)
+                                    c1, c2 = int(h1), int(h2)
+
+                                # Sort to handle potential reversed definitions
+                                r1, r2 = sorted([r1, r2])
+                                c1, c2 = sorted([c1, c2])
+                                
+                                # Clamp
+                                r1 = max(0, r1)
+                                c1 = max(0, c1)
+                                r2 = min(r2, n_layers - 1)
+                                c2 = min(c2, n_columns - 1)
+                                
+                                # --- FIX 2: Orientation & Slicing ---
+                                # Fortran loop: do iv (rows)... do il (cols)...
+                                # Python Slicing is exclusive at end, so +1
+                                sinks[r1:r2+1, c1:c2+1] = val_id
+                                
                         elif target_arr is not None:
                             # Edges: p1 p2 id
                             if len(data) >= 3:
                                 p1, p2 = float(data[0]), float(data[1])
                                 if mode == 0:
-                                    idx1 = int(p1 * limit)
-                                    idx2 = int(p2 * limit)
-                                    idx2 = min(idx2, limit)
-                                    target_arr[idx1:idx2] = val_id
-                                    
+                                    # Scaling Fix for 1D arrays
+                                    idx1 = int(p1 * (limit - 1))
+                                    idx2 = int(p2 * (limit - 1))
+                                else:
+                                    idx1, idx2 = int(p1), int(p2)
+                                
+                                idx1, idx2 = sorted([idx1, idx2])
+                                idx1 = max(0, idx1)
+                                idx2 = min(idx2, limit - 1)
+                                
+                                target_arr[idx1:idx2+1] = val_id
+                                
         except StopIteration:
             pass
             
@@ -127,15 +147,23 @@ class BoundaryMap:
             start_idx = 0
             for i in range(1, n):
                 if array[i] != current_val:
-                    blocks.append((start_idx, i, current_val))
+                    # End of a block
+                    blocks.append((start_idx, i - 1, current_val)) # Store inclusive end index
                     current_val = array[i]
                     start_idx = i
-            blocks.append((start_idx, n, current_val))
+            blocks.append((start_idx, n - 1, current_val))
+            
+            # Filter out 0 (No Flow) blocks if desired, or keep all. 
+            # Usually we write defined boundaries.
             
             f.write(f"{name}\n")
             f.write(f"{len(blocks)} {relative_mode}\n")
             for start, end, val in blocks:
-                f.write(f"{start/n:.4f} {end/n:.4f} {val}\n")
+                # Write normalized 0.0-1.0 coordinates
+                # We normalize by (n-1) to be consistent with the reader
+                # Avoid div by zero for single cell
+                denom = (n - 1) if n > 1 else 1
+                f.write(f"{start/denom:.4f} {end/denom:.4f} {val}\n")
             f.write("\n")
 
         with open(filepath, 'w') as f:
@@ -150,18 +178,23 @@ class BoundaryMap:
             unique_sinks = np.unique(self.sinks)
             sink_blocks = []
             
-            # Simple approach: Find bounding box for each sink ID (assumes rectangular sinks)
-            # For complex shapes, RLE on rows is better, but this matches legacy block format best.
             rows, cols = self.sinks.shape
+            denom_r = (rows - 1) if rows > 1 else 1
+            denom_c = (cols - 1) if cols > 1 else 1
             
             for sid in unique_sinks:
                 if sid == 0: continue
                 # Find coords where sink == sid
                 r_idx, c_idx = np.where(self.sinks == sid)
                 
-                # Normalize to 0.0-1.0
-                v1, v2 = r_idx.min() / rows, (r_idx.max() + 1) / rows
-                h1, h2 = c_idx.min() / cols, (c_idx.max() + 1) / cols
+                # Bounding Box Approach
+                # Min/Max indices are inclusive here
+                rmin, rmax = r_idx.min(), r_idx.max()
+                cmin, cmax = c_idx.min(), c_idx.max()
+                
+                # Normalize using (N-1) logic
+                v1, v2 = rmin / denom_r, rmax / denom_r
+                h1, h2 = cmin / denom_c, cmax / denom_c
                 
                 sink_blocks.append((v1, v2, h1, h2, sid))
             

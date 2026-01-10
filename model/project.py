@@ -13,7 +13,7 @@ from model.inputs.assigments.soil import SoilAssignment
 from model.inputs.assigments.surface import SurfaceAssignment
 from model.inputs.controll_volume import ControlVolumeDef
 from model.inputs.forcing.configuration import ForcingConfiguration
-from model.inputs.land_use import LandUseLibrary
+from model.inputs.forcing.landuse.library import LandUseLibrary
 from model.inputs.mesh import HillslopeMesh
 from model.inputs.soil import SoilLibrary
 from model.inputs.wind import WindLibrary
@@ -148,7 +148,7 @@ class CATFLOWProject:
         # Global 3: Land Use
         p_lu = raw_lines[idx]; idx += 1
         print("  Loading Land Use Library...")
-        project.land_use_library = LandUseLibrary.from_file(fpath(p_lu))
+        project.land_use_library = LandUseLibrary.from_file(fpath(p_lu), folder)
         
         # Global 4: Wind
         p_wind = raw_lines[idx]; idx += 1

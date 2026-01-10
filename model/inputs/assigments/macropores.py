@@ -67,7 +67,7 @@ class MacroporeDef:
         # Header params: amakh=1.0, b_makh=1.0, m_aniso=1
         # CATFLOW parser reads these starting at column 7.
         # "D" + 6 spaces puts the numbers exactly where Fortran expects them.
-        header = "D      1.0 1.0 1"
+        header = "D      1.0 1.0 1" 
         method = "ari"
         
         with open(filepath, 'w') as f:
@@ -75,6 +75,6 @@ class MacroporeDef:
             f.write(f"{method}\n")
             
             # CATFLOW reads top-to-bottom (iv=iacnv -> 1)
-            for r in range(rows - 1, -1, -1):
+            for r in range(rows):  # 0 to rows-1 = BOTTOM to TOP
                 row_data = self.factor_matrix[r, :]
                 f.write(" ".join([f"{v:.4f}" for v in row_data]) + "\n")

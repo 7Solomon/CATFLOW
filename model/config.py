@@ -106,11 +106,13 @@ class RunControl:
             
             # Safety scan in case there are extra param lines
             while idx < len(lines):
-                if lines[idx].isdigit():
-                    # Flags line check (starts with 0 or 1)
-                    if idx+1 < len(lines) and lines[idx+1].replace(' ','').isdigit():
-                         n_outputs = int(lines[idx])
-                         break
+                if lines[idx].isdigit() and int(lines[idx]) < 100:
+                    n_outputs = int(lines[idx])
+                    # Validate next line looks like flags
+                    flags = lines[idx+1].split()
+                    if all(f in ['0', '1'] for f in flags):
+                        n_outputs = int(lines[idx])
+                        break
                 idx += 1
                 
             if n_outputs > 0:
