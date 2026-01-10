@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { Hill } from '../../types';
+import { HillVisualizer } from '../HillVisualizer';
 
 export const HillsPanel = ({ hills }: { hills: Hill[] }) => {
     const [selectedHillId, setSelectedHillId] = useState<number | null>(hills[0]?.id || null);
@@ -37,7 +38,12 @@ export const HillsPanel = ({ hills }: { hills: Hill[] }) => {
                         <div>Dimensions: <span className="font-mono text-white">{selectedHill.n_layers} rows × {selectedHill.n_columns} cols</span></div>
                         <div>Soil Maps: <span className="font-mono text-white">{selectedHill.has_soil_map ? 'Yes' : 'No'}</span></div>
                     </div>
-                    {/* You can add the Mesh/Heatmap visualization here later */}
+                    {/* Add Visualizer */}
+                    <div className="space-y-2">
+                        <h4 className="text-slate-400 font-medium text-sm uppercase tracking-wider">Mesh Visualization</h4>
+                        <HillVisualizer hillId={selectedHill.id} />
+                    </div>
+
                 </div>
             )}
         </div>

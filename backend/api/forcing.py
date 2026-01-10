@@ -64,53 +64,96 @@ async def get_landuse_timeline():
     """Get Land Use Timeline structure"""
     project = get_project_or_404()
     if not project.forcing or not project.forcing.landuse_timeline:
-        raise HTTPException(status_code=404, detail="Land use timeline not found")
+        return {"periods": []}
     
     timeline = project.forcing.landuse_timeline
     return {
         "periods": [
             {
-                "time": p.time,
+                "start_time": p.start_time,
                 "lookup_file": p.lookup.filename,
-                "mappings": p.lookup.mappings  # Dictionary of id -> plant_id mappings
+                "mappings": p.lookup.mapping,  # Dictionary of ext_id -> lib_id
+                "column_idx": p.lookup.column_idx
             }
             for p in timeline.periods
-        ]
+        ],
+        "end_time": timeline.end_time
     }
 
 @router.get("/landuse/library")
 async def get_landuse_library():
-    """Get all plant definitions from the library"""
+    """Get all land use types from the library"""
     project = get_project_or_404()
-    if not project.forcing or not project.forcing.landuse_library:
+    if not project.forcing or not project.land_use_library:
         return []
     
+    # Iterate over 'types' list, not 'plants'
     return [
         {
-            "id": p.id,
-            "name": p.name,
-            "type": p.type
+            "id": t.id,
+            "name": t.name,
+            "has_definition": t.definition is not None,
+            "filename": t.definition.filename if t.definition else None
         }
-        for p in project.forcing.landuse_library.plants
+        for t in project.land_use_library.types
     ]
 
-@router.get("/landuse/plant/{plant_id}")
-async def get_plant_details(plant_id: int):
-    """Get specific parameters for a plant definition"""
+@router.get("/landuse/type/{type_id}")
+async def get_landuse_details(type_id: int):
+    """Get specific parameters for a land use type"""
     project = get_project_or_404()
-    if not project.forcing or not project.forcing.landuse_library:
+    if not project.forcing or not project.land_use_library:
         raise HTTPException(status_code=404, detail="Land use library not loaded")
         
-    plant = next((p for p in project.forcing.landuse_library.plants if p.id == plant_id), None)
-    if not plant:
-        raise HTTPException(status_code=404, detail=f"Plant ID {plant_id} not found")
-        
+    # Find the type in the 'types' list
+    lu_type = next((t for t in project.land_use_library.types if t.id == type_id), None)
+    
+    if not lu_type:
+        raise HTTPException(status_code=404, detail=f"Land use type ID {type_id} not found")
+    
+    if not lu_type.definition:
+        return {
+            "id": lu_type.id,
+            "name": lu_type.name,
+            "definition": None
+        }
+
+    # Format the table data
+    def_obj = lu_type.definition
     return {
-        "id": plant.id,
-        "name": plant.name,
-        "parameters": plant.parameters  # Dictionary of parameter tables
+        "id": lu_type.id,
+        "name": lu_type.name,
+        "definition": {
+            "name": def_obj.name,
+            "filename": def_obj.filename,
+            "headers": def_obj.header_labels,
+            "table": [
+                {
+                    "day": row.day,
+                    "values": row.params
+                } 
+                for row in def_obj.table
+            ]
+        }
     }
 
+#@router.get("/landuse/plant/{plant_id}")
+#async def get_plant_details(plant_id: int):
+#    """Get specific parameters for a plant definition"""
+#    project = get_project_or_404()
+#    if not project.forcing or not project.forcing.landuse_library:
+#        raise HTTPException(status_code=404, detail="Land use library not loaded")
+#        
+#    plant = next((p for p in project.forcing.landuse_library.plants if p.id == plant_id), None)
+#    if not plant:
+#        raise HTTPException(status_code=404, detail=f"Plant ID {plant_id} not found")
+#        
+#    return {
+#        "id": plant.id,
+#        "name": plant.name,
+#        "parameters": plant.parameters  # Dictionary of parameter tables
+#    }
+#
 
 @router.get("/files")
 async def get_forcing_files():

@@ -43,11 +43,21 @@ export const projectApi = {
         const res = await fetch(`${API_BASE}/forcing/landuse/timeline`);
         return res.json();
     },
+    fetchLandUseLibrary: async () => {
+        const res = await fetch(`${API_BASE}/forcing/landuse/library`);
+        return res.json();
+    },
 
-    fetchHillMap: async (hillId: number, mapType: 'soil-map' | 'surface-map' | 'boundary' | 'macropores') => {
+    fetchLandUseType: async (id: number) => {
+        const res = await fetch(`${API_BASE}/forcing/landuse/type/${id}`);
+        return res.json();
+    },
+
+    fetchHillMap: async (hillId: number, mapType: 'mesh' | 'soil-map' | 'surface-map' | 'boundary' | 'macropores') => {
         const res = await fetch(`${API_BASE}/hills/${hillId}/${mapType}`);
         return res.json();
     },
+
 
     fetchSoilCurve: async (soilId: number) => {
         const res = await fetch(`${API_BASE}/soil/${soilId}/curves`);
