@@ -31,6 +31,7 @@ export interface ForcingOverview {
     n_climate_files: number;
     precip_filenames: string[];
     climate_filenames: string[];
+    has_landuse_timeline: boolean;
 }
 
 export interface FullProjectData {
