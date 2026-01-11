@@ -23,11 +23,11 @@ def diagnose():
     #diagnostic = CATFLOWDiagnostic("ft_backend")
     #results = diagnostic.run_full_diagnostic()
     #sys.exit(len(results['errors']))
-    project = CATFLOWProject.from_legacy_folder("IN_TEMPLATE")
+    project = CATFLOWProject.from_legacy_folder("backend/IN_TEMPLATE")
     #project.summary()
-    project.write_to_folder("ft_backend")
+    project.write_to_folder("backend/ft_backend")
     
-    comp = CATFLOWComparator("IN_TEMPLATE", "ft_backend")
+    comp = CATFLOWComparator("backend/IN_TEMPLATE", "backend/ft_backend")
     comp.compare()
 
 
