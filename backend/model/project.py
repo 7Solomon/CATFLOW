@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import List, Optional, Dict
 import numpy as np
 
-from model.inputs.boundaries.initital import InitialState
+from model.inputs.boundaries.initital import SoilWaterIC, SoluteIC
 from model.inputs.boundaries.map import BoundaryMap
 from model.config import GlobalConfig, RunControl
 from model.heterogeneity import HeterogeneityMap
@@ -41,11 +41,12 @@ class Hill:
     theta_scaling: Optional[HeterogeneityMap] = None # thstat_1515.dat
     
     # 4. State & Output
-    initial_cond: Optional[InitialState] = None     # rel_sat.ini
+    initial_cond_sat: Optional[SoilWaterIC] = None     # rel_sat.ini
+    initial_cond_sol: Optional[SoluteIC] = None     # NOT IN PROJECT
     printout: Optional[PrintoutTimes] = None        # printout.prt
     
     # 5. Aux (Control Volume)
-    # cv_def: Optional[ControlVolumeDef] = None     # cont_vol.cv NOT IMPLEMENTED
+    cv_def: Optional[ControlVolumeDef] = None     # cont_vol.cv NOT IMPLEMENTED
 
 @dataclass
 class CATFLOWProject:
@@ -192,9 +193,9 @@ class CATFLOWProject:
             p_cv = raw_lines[idx]; idx += 1
             hill.cv_def = ControlVolumeDef.from_file(fpath(p_cv))
 
-            # 7. Initial Conditions
+            # 7. Initial Conditions JSUT SOIL WATER IC
             p_ini = raw_lines[idx]; idx += 1
-            hill.initial_cond = InitialState.from_file(fpath(p_ini), nl, nc)
+            hill.initial_cond_sat = SoilWaterIC.from_file(fpath(p_ini), nl, nc)
             
             # 8. Printout
             p_prt = raw_lines[idx]; idx += 1
@@ -299,7 +300,7 @@ class CATFLOWProject:
             if hill.theta_scaling: hill.theta_scaling.to_file(str(base / files['thstat']))
             if hill.macropores: hill.macropores.to_file(str(base / files['mak']))
             if hill.cv_def: hill.cv_def.to_file(str(base / files['cv']))
-            if hill.initial_cond: hill.initial_cond.to_file(str(base / files['ini']))
+            if hill.initial_cond_sat: hill.initial_cond_sat.to_file(str(base / files['ini']))
             if hill.printout: hill.printout.to_file(str(base / files['prt']))
             if hill.surface_map: hill.surface_map.to_file(str(base / files['pob']))
             if hill.boundary: hill.boundary.to_file(str(base / files['rb']))

@@ -1,145 +1,203 @@
+from typing import Any, Dict, List
 import numpy as np
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+
+@dataclass
+class HillslopeMeshHeader:
+    iacnv: int  # n of vertical nodes (height)
+    iacnl: int  # n of lateral nodes (length)
+    w_fix: float  # Global angle of anisotropy
+    hangnr: int  # Hillslope ID number
+    
+    hgobfl: float = 0.0 # Surface area
+    hgbreit: float = 0.0 # Average width
+    hglang: float = 0.0 # Total length
+
+    refrence_kords: Dict[str, float | None] = field(default_factory=lambda: {
+        "xkobez": None, "ykobez": None, "hkobez": None
+    }) 
+
+@dataclass
+class HillslopeMeshCoordsVectors:
+    etas: np.ndarray  # Shape: (iacnv,)
+    xsis: np.ndarray  # Shape: (iacnl,), dtype_stuff=[('xsi', 'f8'), ('xko', 'f8'), ('yko', 'f8'), ('varbr', 'f8')]
+
+HILLSLOPE_DTYPE = np.dtype([
+    ('hko', 'f8'),    # Z-coordinate
+    ('sko', 'f8'),    # S-coordinate
+    ('f_eta', 'f8'),  # Metric coeff vertical
+    ('f_xsi', 'f8'),  # Metric coeff lateral
+    ('w_xsho', 'f8'), # Angle lateral
+    ('w_hohr', 'f8'), # Angle anisotropy
+    ('iboden', 'i4')  # Soil ID
+])
+
+LATERAL_VECTOR_DTYPE = np.dtype([
+    ('xsi', 'f8'),
+    ('xko', 'f8'),
+    ('yko', 'f8'),
+    ('varbr', 'f8')
+])
 
 @dataclass
 class HillslopeMesh:
-    n_layers: int   # iacnv (vertical nodes)
-    n_columns: int  # iacnl (horizontal nodes)
-    hill_id: int
-    
-    # Coordinates for every node (n_layers, n_columns)
-    # Storing as 2D arrays matches the Fortran structure (iv, il)
-    x_nodes: np.ndarray 
-    z_nodes: np.ndarray 
+    header: HillslopeMeshHeader
+    vector_definition: HillslopeMeshCoordsVectors
+    data: np.ndarray = field(init=False)
 
-    def _calculate_metric_factors(self):
-        """Calculate f_eta, f_xsi from coordinate differences"""
-        f_eta = np.zeros((self.n_layers, self.n_columns))
-        f_xsi = np.zeros((self.n_layers, self.n_columns))
-        
-        for r in range(self.n_layers):
-            for c in range(self.n_columns):
-                # f_xsi: horizontal spacing (Metric factor along Xi)
-                if c < self.n_columns - 1:
-                    dx = self.x_nodes[r, c+1] - self.x_nodes[r, c]
-                    dz = self.z_nodes[r, c+1] - self.z_nodes[r, c]
-                    f_xsi[r, c] = np.sqrt(dx**2 + dz**2)
-                elif c > 0:
-                    # Copy from previous neighbor for boundary
-                    f_xsi[r, c] = f_xsi[r, c-1]
-                
-                # f_eta: vertical spacing (Metric factor along Eta)
-                if r < self.n_layers - 1:
-                    dx = self.x_nodes[r+1, c] - self.x_nodes[r, c]
-                    dz = self.z_nodes[r+1, c] - self.z_nodes[r, c]
-                    f_eta[r, c] = np.sqrt(dx**2 + dz**2)
-                elif r > 0:
-                    # Copy from previous neighbor for boundary
-                    f_eta[r, c] = f_eta[r, c-1]
-                    
-        return f_eta, f_xsi
-        
+    def __post_init__(self):
+        if not hasattr(self, 'data'):
+            self.data = np.zeros(
+                (self.header.iacnl, self.header.iacnv), 
+                dtype=HILLSLOPE_DTYPE
+            ) # IF NOT FROM FILE INIT IN CORRECT SHAPE, IF FROM FILE ALSO ACTUALLY THEN POPULATE AfTER
+
     @classmethod
     def from_file(cls, path: str) -> 'HillslopeMesh':
-        with open(path, 'r') as f:
-            lines = [l.strip() for l in f if l.strip()]
-            
-        # Line 1: 15 15 0.0 1
-        parts = lines[0].split()
-        iacnv = int(parts[0])  # Layers (rows)
-        iacnl = int(parts[1])  # Columns
-        hill_id = int(parts[3])
-        
-        # Skip header lines (Line 2, 3)
-        # Skip Block 1 (eta values) -> iacnv lines
-        # Skip Block 2 (xsi values) -> iacnl lines
-        
-        # The main data block starts after: 3 (header) + iacnv + iacnl
-        start_idx = 3 + iacnv + iacnl
-        
-        x_grid = np.zeros((iacnv, iacnl))
-        z_grid = np.zeros((iacnv, iacnl))
-        
-        # Fortran loop order in rdhang:
-        # do 110 il = 1,iacnl
-        #   do 100 iv = 1,iacnv
-        #     read... hko, sko...
-        
-        current_line = start_idx
-        for col in range(iacnl):
-            for row in range(iacnv):
-                if current_line >= len(lines): break
-                
-                # Data line: 1169.8128 0.0000 5.71 ...
-                # Parts: hko(z), sko(x), ...
-                val_parts = lines[current_line].split()
-                z = float(val_parts[0])
-                x = float(val_parts[1])
-                
-                x_grid[row, col] = x
-                z_grid[row, col] = z
-                
-                current_line += 1
-                
-        return cls(n_layers=iacnv, n_columns=iacnl, hill_id=hill_id, x_nodes=x_grid, z_nodes=z_grid)
+        try:
+            with open(path, 'r') as f:
+                lines = [l.strip() for l in f if l.strip()]
+                lines = [l for l in lines if not l.startswith('#')]
 
+            # Iterator to consume lines sequentially
+            line_iter = iter(lines)
+
+            # HEADER
+            # Line 1: iacnv, iacnl, w_fix, hangnr
+            # "11 17 0.0 1"
+            l1 = next(line_iter).split()
+            iacnv = int(l1[0])
+            iacnl = int(l1[1])
+            w_fix = float(l1[2])
+            hangnr = int(l1[3])
+
+            # Line 2: xkobez, ykobez, hkobez
+            # "3480100. 5445400. 202.0"
+            l2 = next(line_iter).split()
+            ref_coords = {
+                "xkobez": float(l2[0]),
+                "ykobez": float(l2[1]),
+                "hkobez": float(l2[2])
+            }
+
+            # Line 3: hgobfl, hgbreit, hglang
+            # "4. 10. 40."
+            l3 = next(line_iter).split()
+            hgobfl = float(l3[0])
+            hgbreit = float(l3[1])
+            hglang = float(l3[2])
+
+            header = HillslopeMeshHeader(
+                iacnv=iacnv, iacnl=iacnl, w_fix=w_fix, hangnr=hangnr,
+                hgobfl=hgobfl, hgbreit=hgbreit, hglang=hglang,
+                refrence_kords=ref_coords
+            )
+
+            # VECTOR STUFF
+
+            # Block A: Vertical Coordinates (eta) -> 'iacnv' lines
+            etas = np.zeros(iacnv, dtype=float)
+            for i in range(iacnv):
+                etas[i] = float(next(line_iter).split()[0])
+
+            # Block B: Lateral Coordinates (xsi + geometry) -> 'iacnl' lines
+            xsis_struct = np.zeros(iacnl, dtype=LATERAL_VECTOR_DTYPE)
+            for i in range(iacnl):
+                parts = next(line_iter).split()
+                xsis_struct[i] = (float(parts[0]), float(parts[1]), float(parts[2]), float(parts[3]))
+
+            vectors = HillslopeMeshCoordsVectors(etas=etas, xsis=xsis_struct)
+
+            # DATA
+            
+            mesh_instance = cls(header=header, vector_definition=vectors)            
+            mesh_instance.data = np.zeros((iacnl, iacnv), dtype=HILLSLOPE_DTYPE) # ACTUALLY NOT NECESSARY BECAUSE POST INIT BUT TO BE SURE
+
+            # Block C: The Grid -> 'iacnl' blocks of 'iacnv' lines
+            for il in range(iacnl):
+                for iv in range(iacnv):
+                    # Line: hko sko f_eta f_xsi w_xsho w_hohr iboden
+                    parts = next(line_iter).split()
+                    mesh_instance.data[il, iv] = (
+                        float(parts[0]), # hko
+                        float(parts[1]), # sko
+                        float(parts[2]), # f_eta
+                        float(parts[3]), # f_xsi
+                        float(parts[4]), # w_xsho
+                        float(parts[5]), # w_hohr
+                        int(parts[6])    # iboden
+                    )
+
+            return mesh_instance
+
+        except StopIteration:
+            raise ValueError("Unexpected end of file while parsing.")
+        except Exception as e:
+            raise ValueError(f"Failed to parse HillslopeMesh file: {e}")
     def to_file(self, filepath: str):
         """
-        Reconstructs a legacy .geo file.
+        Writes the mesh data to a file compatible with the FORTRAN reader.
         """
-        rows, cols = self.n_layers, self.n_columns
-        w_fix = 0.0
-        hill_id = self.hill_id
-        
-        with open(filepath, 'w') as f:
-            # Header
-            f.write(f"{rows} {cols} {w_fix:.4f} {hill_id}\n")
-            
-            # Ref Coords (Dummy 0,0,0)
-            f.write("0.00 0.00 0.00\n")
-            
-            # Surface Stats
-            length = self.x_nodes[-1, -1] - self.x_nodes[-1, 0]
-            width = 1.0 
-            slope = 0.0 
-            f.write(f"{length:.2f} {width:.2f} {slope:.2f}\n")
-            
-            # Block 1: Eta vector (Vertical relative)
-            for r in range(rows):
-                # Avoid division by zero
-                denom = (rows - 1) if rows > 1 else 1
-                f.write(f"{r/denom:.8f}\n")
+        try:
+            with open(filepath, 'w') as f:
+                # HEADER
+                h = self.header
                 
-            # Block 2: Xsi vector + Surface Coords
-            for c in range(cols):
-                denom = (cols - 1) if cols > 1 else 1
-                xsi = c / denom
+                # Line 1: Dimensions and ID
+                # Format: iacnv iacnl w_fix hangnr
+                f.write(f"{h.iacnv} {h.iacnl} {h.w_fix} {h.hangnr}\n")
                 
-                # Top node (row=rows-1) coords
-                top_x = self.x_nodes[rows-1, c]
-                top_z = self.z_nodes[rows-1, c]
-                # Bottom node
-                bot_x = self.x_nodes[0, c]
-                bot_z = self.z_nodes[0, c]
+                # Line 2: Reference Coordinates
+                # Format: xkobez ykobez hkobez
+                ref = h.refrence_kords
+                # Use .get() to be safe, defaulting to 0.0 if missing
+                xk = ref.get("xkobez", 0.0)
+                yk = ref.get("ykobez", 0.0)
+                hk = ref.get("hkobez", 0.0)
+                f.write(f"{xk} {yk} {hk}\n")
                 
-                f.write(f"{xsi:.8f} {top_x:.4f} {top_z:.4f} {bot_x:.4f} {bot_z:.4f} 1.0\n")
+                # Line 3: Geometry Stats
+                # Format: hgobfl hgbreit hglang
+                f.write(f"{h.hgobfl} {h.hgbreit} {h.hglang}\n")
 
-            # --- FIX: Calculate factors ONCE outside the loop ---
-            f_eta_grid, f_xsi_grid = self._calculate_metric_factors()
+                # VECTROS
+                
+                # Block A: Vertical Coordinates (eta)
+                # Expects 'iacnv' lines
+                if len(self.vector_definition.etas) != h.iacnv:
+                    raise ValueError(f"Header says {h.iacnv} vertical nodes, but eta vector has {len(self.vector_definition.etas)}")
+                
+                for eta in self.vector_definition.etas:
+                    f.write(f"{eta}\n")
+                
+                # Block B: Lateral Coordinates (xsi)
+                # Expects 'iacnl' lines with 4 columns: xsi xko yko varbr
+                if len(self.vector_definition.xsis) != h.iacnl:
+                    raise ValueError(f"Header says {h.iacnl} lateral nodes, but xsi vector has {len(self.vector_definition.xsis)}")
 
-            # Block 3: Full Grid Loop
-            # CATFLOW Loop: do il=1,iacnl; do iv=1,iacnv
-            for c in range(cols):
-                for r in range(rows):
-                    z = self.z_nodes[r, c] # hko
-                    x = self.x_nodes[r, c] # sko
-                    
-                    f_eta_val = f_eta_grid[r, c]
-                    f_xsi_val = f_xsi_grid[r, c]
+                for row in self.vector_definition.xsis:
+                    # Access structured array fields
+                    f.write(f"{row['xsi']} {row['xko']} {row['yko']} {row['varbr']}\n")
 
-                    w_xsho = 0.0
-                    w_hohr = 0.0
-                    iboden = 1 
-                    
-                    # Now f_eta_val is a float, so :.2f works
-                    f.write(f"{z:.4f} {x:.4f} {f_eta_val:.2f} {f_xsi_val:.2f} {w_xsho:.2f} {w_hohr:.2f} {iboden}\n")
+                # DATA
+                # Verify data shape matches header
+                if self.data.shape != (h.iacnl, h.iacnv):
+                    raise ValueError(f"Data shape {self.data.shape} does not match header dimensions ({h.iacnl}, {h.iacnv})")
+
+                for il in range(h.iacnl):
+                    for iv in range(h.iacnv):
+                        # Get the structured point
+                        d = self.data[il, iv]
+                        
+                        # Format: hko sko f_eta f_xsi w_xsho w_hohr iboden
+                        # Note: iboden is cast to int, others are floats
+                        line = (
+                            f"{d['hko']} {d['sko']} "
+                            f"{d['f_eta']} {d['f_xsi']} "
+                            f"{d['w_xsho']} {d['w_hohr']} "
+                            f"{int(d['iboden'])}"
+                        )
+                        f.write(line + "\n")
+                        
+        except Exception as e:
+            raise IOError(f"Failed to write HillslopeMesh file to {filepath}: {e}")
