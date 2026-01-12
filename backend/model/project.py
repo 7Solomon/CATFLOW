@@ -5,7 +5,7 @@ from typing import List, Optional, Dict
 import numpy as np
 
 from model.inputs.boundaries.initital import SoilWaterIC, SoluteIC
-from model.inputs.boundaries.map import BoundaryMap
+from model.inputs.boundaries.map import BoundaryConditions
 from model.config import GlobalConfig, RunControl
 from model.heterogeneity import HeterogeneityMap
 from model.inputs.assigments.macropores import MacroporeDef
@@ -34,7 +34,7 @@ class Hill:
     soil_map: Optional[SoilAssignment] = None       # soil_horizons.bod
     surface_map: Optional[SurfaceAssignment] = None # surface.pob
     macropores: Optional[MacroporeDef] = None       # profil.mak
-    boundary: Optional[BoundaryMap] = None          # boundary.rb
+    boundary: Optional[BoundaryConditions] = None          # boundary.rb
     
     # 3. Heterogeneity Scaling (The _1515.dat files)
     k_scaling: Optional[HeterogeneityMap] = None    # kstat_1515.dat
@@ -45,9 +45,6 @@ class Hill:
     initial_cond_sol: Optional[SoluteIC] = None     # NOT IN PROJECT
     printout: Optional[PrintoutTimes] = None        # printout.prt
     
-    # 5. Aux (Control Volume)
-    cv_def: Optional[ControlVolumeDef] = None     # cont_vol.cv NOT IMPLEMENTED
-
 @dataclass
 class CATFLOWProject:
     name: str = "New Project"
@@ -80,7 +77,6 @@ class CATFLOWProject:
     def from_legacy_folder(cls, folder_path: str, run_filename: str = "run_01.in") -> 'CATFLOWProject':
         """
         Parses a legacy CATFLOW folder structure.
-        Crucially, this uses STRICT POSITIONAL PARSING for run_01.in,
         """
         folder = Path(folder_path).resolve()
         project = cls(name=folder.name)
@@ -100,41 +96,35 @@ class CATFLOWProject:
         project.run_control = RunControl.from_file(str(run_path))
         
         # 3. Parse File Paths from run_01.in (Strict Order)
-        # We re-read the file to get the paths in the correct loop order
-        with open(folder / run_filename, 'r') as f:
+        with open(run_path, 'r') as f:
             raw_lines = [l.split('%')[0].strip() for l in f if l.split('%')[0].strip()]
+            raw_lines = [l for l in raw_lines if not l.startswith('#')]
 
-        # 1. FIND THE SYNC POINT (End of Output Files)
-        # We don't rely on matching a number. We look for the structure.
-        # Structure: [Count] -> [Flags] -> [Files...] -> [Next Count]
+        def fpath(rel): return str(folder / rel)
         
+        # Find the output file block
         idx = 0
         n_outputs = 0
         
-        # Scan for the output block signature
+        # Scan for the output block: Count -> Flags -> Files
         for i, line in enumerate(raw_lines):
-            # Look for the flags line (e.g., "0 1 1 0...")
-            # It's unique because it's a long sequence of 0s and 1s
-            if i > 0 and len(line) > 5 and all(c in '01 ' for c in line):
-                # If this is the flags line, the previous line MUST be the count
-                if raw_lines[i-1].isdigit():
-                    n_outputs = int(raw_lines[i-1])
-                    idx = i - 1 # Set index to the count line
+            # Look for the flags line (long sequence of 0s and 1s)
+            if i > 0 and len(line) >= 10 and all(c in '01 ' for c in line):
+                if i > 0 and raw_lines[i-1].replace('-','').isdigit():
+                    n_outputs = abs(int(raw_lines[i-1]))
+                    idx = i - 1
                     print(f"DEBUG: Found output block at line {idx} with {n_outputs} files")
                     break
         
-        # Jump over the output block
-        # Count(1) + Flags(1) + Files(n_outputs)
+        # Jump over the output block: Count(1) + Flags(1) + Files(n_outputs)
         idx += 1 + 1 + n_outputs
         
-        # NOW we are exactly at "n_global_inputs"
-        print(f"DEBUG: Reading Global Input Count at line {idx}: '{raw_lines[idx]}'")
-        
-        # 2. Parse Globals
+        # Read number of global input files
         n_global_inputs = int(raw_lines[idx]); idx += 1
+        print(f"DEBUG: Reading {n_global_inputs} Global Input Files")
         
-        # Helper to get full path
-        def fpath(rel): return str(folder / rel)
+        if n_global_inputs < 4:
+            raise ValueError(f"Expected at least 4 global inputs, got {n_global_inputs}")
         
         # Global 1: Soils
         p_soils = raw_lines[idx]; idx += 1
@@ -156,7 +146,11 @@ class CATFLOWProject:
         print("  Loading Wind Library...")
         project.wind_library = WindLibrary.from_file(fpath(p_wind))
         
-        # Hill Loop Count
+        # Skip any additional global files
+        for _ in range(n_global_inputs - 4):
+            idx += 1
+        
+        # Hill Loop Count (can be negative)
         n_hills_raw = int(raw_lines[idx]); idx += 1
         n_hills = abs(n_hills_raw)
         
@@ -170,18 +164,18 @@ class CATFLOWProject:
             print(f"    [Hill {h_i+1}] Mesh: {p_geo}")
             hill.mesh = HillslopeMesh.from_file(fpath(p_geo))
             
-            # Mesh dimensions needed for other files
-            nl, nc = hill.mesh.n_layers, hill.mesh.n_columns
+            # Get dimensions
+            nl, nc = hill.mesh.header.iacnv, hill.mesh.header.iacnl
             
             # 2. Soil Map (.bod)
             p_bod = raw_lines[idx]; idx += 1
             hill.soil_map = SoilAssignment.from_file(fpath(p_bod), nl, nc)
             
-            # 3. K-Stat (Heterogeneity)
+            # 3. K-Stat
             p_kstat = raw_lines[idx]; idx += 1
             hill.k_scaling = HeterogeneityMap.from_file(fpath(p_kstat))
             
-            # 4. Th-Stat (Heterogeneity)
+            # 4. Th-Stat
             p_thstat = raw_lines[idx]; idx += 1
             hill.theta_scaling = HeterogeneityMap.from_file(fpath(p_thstat))
             
@@ -193,26 +187,41 @@ class CATFLOWProject:
             p_cv = raw_lines[idx]; idx += 1
             hill.cv_def = ControlVolumeDef.from_file(fpath(p_cv))
 
-            # 7. Initial Conditions JSUT SOIL WATER IC
+            # 7. Initial Conditions - Water
             p_ini = raw_lines[idx]; idx += 1
             hill.initial_cond_sat = SoilWaterIC.from_file(fpath(p_ini), nl, nc)
             
-            # 8. Printout
+            # 8. Initial Conditions - Solute (OPTIONAL)
+            # Check if the next file looks like a solute IC file
+            # Heuristic: If istact > 0 in config, expect solute IC
+            next_file = raw_lines[idx]
+            if project.run_control and hasattr(project.run_control, 'istact'):
+                if project.run_control.istact > 0:
+                    # Expect solute IC file
+                    p_sol_ini = raw_lines[idx]; idx += 1
+                    try:
+                        hill.initial_cond_sol = SoluteIC.from_file(fpath(p_sol_ini), nl, nc)
+                    except:
+                        print(f"    Warning: Failed to load solute IC from {p_sol_ini}")
+                        pass
+            
+            # 9. Printout
             p_prt = raw_lines[idx]; idx += 1
             hill.printout = PrintoutTimes.from_file(fpath(p_prt))
             
-            # 9. Surface Map
+            # 10. Surface Map
             p_pob = raw_lines[idx]; idx += 1
             hill.surface_map = SurfaceAssignment.from_file(fpath(p_pob), nc)
             
-            # 10. Boundary Map
+            # 11. Boundary Map
             p_rb = raw_lines[idx]; idx += 1
-            hill.boundary = BoundaryMap.from_file(fpath(p_rb), nl, nc)
+            hill.boundary = BoundaryConditions.from_file(fpath(p_rb), nl, nc)
             
             project.hills.append(hill)
             
         print("✓ Project Loaded Successfully")
         return project
+
 
     def write_to_folder(self, folder_path: str, source_folder: str = None):
         """

@@ -18,7 +18,7 @@ class SurfaceAssignment:
         "n_horizon": 0,
         "mode": 0
     })
-    surface_data: List[SurfaceRow] = []
+    surface_data: List[SurfaceRow] = field(default_factory=lambda: [])
 
 
     @classmethod

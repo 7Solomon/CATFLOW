@@ -28,28 +28,28 @@ class MacroporeDef:
         instance = cls(header=MacroporeHeader())
         
         # Initialize Default Grid
-        # Defaults: fmac=1.0 (no increase), amac=0.0 (no pore), beta=1.0
         instance.data = np.zeros((n_columns, n_layers), dtype=MACROPORE_DTYPE)
         instance.data['fmac'] = 1.0
         instance.data['beta'] = 1.0
-        # amac is 0.0 by default from np.zeros
         
         try:
             with open(path, 'r') as f:
                 lines = [l.strip() for l in f if l.strip() and not l.startswith('#')]
             
+            if not lines:
+                 return instance
+
             # HEADER
-            # Line 1: "2 1 2" -> n_lines, mode, m_aniso
             header_parts = lines[0].split()
             
             if header_parts[0] == "DIRECT":
-                raise NotImplementedError("DIRECT mode reading not yet implemented, use range-based files.")
+                raise NotImplementedError("DIRECT mode reading not yet implemented.")
             
             n_lines_to_read = int(header_parts[0])
             mode = int(header_parts[1]) # 0=Relative, 1=Node-wise
             m_aniso = int(header_parts[2])
             
-            # Line 2: "ari" or "geo"
+            # Line 2: Velocity Method
             velocity_method = lines[1].strip()
             
             instance.header = MacroporeHeader(
@@ -59,28 +59,28 @@ class MacroporeDef:
             )
             
             # DATA
-            # Format: v_start v_end l_start l_end fmac amac beta
             for i in range(n_lines_to_read):
                 parts = lines[2 + i].split()
                 
-                # 1. Parse Vertical Indices (Always Node-wise integers in this format)
-                # Input is 1-based (Fortran), convert to 0-based
-                v_start = int(parts[0]) - 1
-                v_end = int(parts[1])   # Slice excludes end, so we use this as is for python slice
-                
-                # 2. Parse Lateral Indices (Depends on mode)
                 if mode == 1:
-                    # Node-wise
+                    # Node-wise (Integers in file)
+                    # Input is 1-based (Fortran), convert to 0-based
+                    v_start = int(parts[0]) - 1
+                    v_end = int(parts[1])   # Slice excludes end
+                    
                     l_start = int(parts[2]) - 1
                     l_end = int(parts[3])
                 else:
-                    # Relative coordinates (0.0 to 1.0)
-                    rel_start = float(parts[2])
-                    rel_end = float(parts[3])
-                    l_start = int(rel_start * n_columns)
-                    l_end = int(rel_end * n_columns)
+                    # Relative coordinates (Floats 0.0 - 1.0 in file)
+                    # Convert percentages to indices
+                    v_start = int(float(parts[0]) * n_layers)
+                    v_end = int(float(parts[1]) * n_layers)
                     
-                    # Ensure at least one cell is selected if range is small
+                    l_start = int(float(parts[2]) * n_columns)
+                    l_end = int(float(parts[3]) * n_columns)
+                    
+                    # Safety: Ensure slice is at least 1 cell wide/high if values are valid
+                    if v_end == v_start: v_end += 1
                     if l_end == l_start: l_end += 1
 
                 # 3. Parse Parameters
@@ -88,10 +88,11 @@ class MacroporeDef:
                 amac = float(parts[5])
                 beta = float(parts[6])
                 
-                # 'if macropore active, amac must be > 0', FROM COMMENT
+                # Your requested fix for amac
                 if 0 < amac < 1e-8:
                     amac = 1.0
 
+                # Apply to grid
                 instance.data[l_start:l_end, v_start:v_end]['fmac'] = fmac
                 instance.data[l_start:l_end, v_start:v_end]['amac'] = amac
                 instance.data[l_start:l_end, v_start:v_end]['beta'] = beta
@@ -99,7 +100,8 @@ class MacroporeDef:
             return instance
 
         except Exception as e:
-            raise ValueError(f"Failed to parse Macropore file: {e}")
+            raise ValueError(f"Failed to parse Macropore file ({path}): {e}")
+
     
     def _get_column_segments(self, col_idx: int):
         """

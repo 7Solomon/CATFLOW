@@ -1,63 +1,104 @@
-
 from dataclasses import dataclass
-
 import numpy as np
-
 
 @dataclass
 class SoilAssignment:
-    # The result is a matrix of Integer IDs matching mesh dimensions
-    assignment_matrix: np.ndarray 
+    assignment_matrix: np.ndarray  # Shape: (n_columns, n_layers)
 
     @classmethod
     def from_file(cls, path: str, n_layers: int, n_columns: int) -> 'SoilAssignment':
-        # Initialize with default 0 or -1
-        matrix = np.zeros((n_layers, n_columns), dtype=int)
+        # Result matrix: Default to 0 (or -1 if you prefer invalid)
+        matrix = np.zeros((n_columns, n_layers), dtype=int)
         
         with open(path, 'r') as f:
-            line1 = f.readline().split()
-            if not line1: return cls(matrix)
+            lines = [l.strip() for l in f if l.strip()]
+
+        if not lines:
+            return cls(assignment_matrix=matrix)
+
+        header_parts = lines[0].split()
+
+        # CASE 1: Keyword "BODEN" (Pointwise Matrix)
+        if header_parts[0].upper().startswith("BODEN"):
+            # Format: BODEN nv nl hill_id
+            # Followed by the full matrix
+            # The manual implies the matrix is read: "do iv = 1, iacnv ... read (..., (iboden(iv, il), il=1, iacnl))"
+            # This means Outer Loop = Vertical, Inner Loop = Lateral
             
-            # Helper to check if line is header or block
-            # Sometimes file starts with comment char or string
+            # Read all subsequent tokens
+            tokens = []
+            for line in lines[1:]:
+                tokens.extend([int(x) for x in line.split()])
             
-            n_blocks = int(line1[0])
-            mode = int(line1[1]) # 0 = Relative (0.0-1.0), 1 = Indices
+            # Expected size: n_layers * n_columns
+            if len(tokens) != n_layers * n_columns:
+                print(f"Warning: Expected {n_layers*n_columns} tokens, got {len(tokens)}")
+
+            idx = 0
+            # CATFLOW usually reads Vertical (Outer) -> Lateral (Inner) or vice versa depending on the block
+            # For BODEN: "do iv=1,nv ... do il=1,nl" is common in Fortran dumps
+            # Let's assume standard reading order: Row by Row (Vertical 1, then all Laterals)
+            for v in range(n_layers):
+                for l in range(n_columns):
+                    if idx < len(tokens):
+                        matrix[l, v] = tokens[idx]
+                        idx += 1
             
-            for _ in range(n_blocks):
-                line = f.readline()
-                while line and (line.strip().startswith('%') or not line.strip()):
-                    line = f.readline() # Skip comments
+        # CASE 2: Blockwise (Numeric Header)
+        else:
+            # Format: n_blocks mode (0=rel/1=abs)
+            n_blocks = int(header_parts[0])
+            mode = int(header_parts[1]) if len(header_parts) > 1 else 0
+            
+            for i in range(n_blocks):
+                if i + 1 >= len(lines): break
+                parts = lines[i+1].split()
                 
-                parts = line.split()
-                # Format: v_start v_end h_start h_end soil_id
-                v1, v2, h1, h2, soil_id = float(parts[0]), float(parts[1]), float(parts[2]), float(parts[3]), int(parts[4])
+                # Format: v_start v_end l_start l_end soil_id
+                v_s, v_e = cls._parse_range(parts[0], parts[1], n_layers, mode)
+                l_s, l_e = cls._parse_range(parts[2], parts[3], n_columns, mode)
+                soil_id = int(parts[4])
                 
-                if mode == 0:
-                    # Fortran 1-based: int(eta * (iacnv-1)) + 1
-                    # Python 0-based: int(eta * (iacnv-1))
-                    r_start = int(v1 * (n_layers - 1))
-                    r_end = int(v2 * (n_layers - 1))
-                    c_start = int(h1 * (n_columns - 1))
-                    c_end = int(h2 * (n_columns - 1))
-                                    
-                    matrix[r_start:r_end, c_start:c_end] = soil_id
-                    
-                else:
-                    # Direct indices
-                    matrix[int(v1):int(v2), int(h1):int(h2)] = soil_id
+                # Apply
+                matrix[l_s:l_e, v_s:v_e] = soil_id
 
         return cls(assignment_matrix=matrix)
-    
+
     def to_file(self, filepath: str):
-        rows, cols = self.assignment_matrix.shape
-        hill_id = 1
+        """
+        Writes the matrix in the BODEN (Pointwise) format which is safest/easiest.
+        """
+        rows, cols = self.assignment_matrix.shape # (n_cols, n_layers)
         
         with open(filepath, 'w') as f:
-            # "BLOCK " is 6 chars, so the numbers start at the 7th char (Fortran standard)
-            f.write(f"BLOCK {rows} {cols} {hill_id}\n")
+            # Header: BODEN n_layers n_columns hill_id
+            f.write(f"BODEN {cols} {rows} 1\n")
+            
+            # Write data: Loop Vertical (Outer), Loop Lateral (Inner)
+            # This matches "do iv=1,nv ... do il=1,nl"
+            for v in range(cols):
+                row_vals = []
+                for l in range(rows):
+                    row_vals.append(str(self.assignment_matrix[l, v]))
+                f.write(" " + " ".join(row_vals) + "\n")
 
-            # CATFLOW reads: do iv = iacnv, 1, -1 (Top to Bottom)
-            for r in range(rows - 1, -1, -1):
-                row_data = self.assignment_matrix[r, :]
-                f.write(" ".join(map(str, row_data)) + "\n")
+    @staticmethod
+    def _parse_range(s_str, e_str, dim, mode):
+        """
+        Parses range based on mode.
+        mode 0: Relative (0.0-1.0) OR Absolute (if > 1.0 heuristic)
+        mode 1: Absolute (1-based)
+        """
+        s_val = float(s_str)
+        e_val = float(e_str)
+        
+        # Heuristic override: if values are integers > 1, treat as absolute even if mode 0
+        is_actually_absolute = (mode == 1) or (s_val > 1.0 or e_val > 1.0)
+        
+        if is_actually_absolute:
+            return int(s_val) - 1, int(e_val)
+        else:
+            s = int(s_val * dim)
+            e = int(e_val * dim)
+            if e == s: e += 1
+            return s, e

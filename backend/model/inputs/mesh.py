@@ -13,7 +13,7 @@ class HillslopeMeshHeader:
     hgbreit: float = 0.0 # Average width
     hglang: float = 0.0 # Total length
 
-    refrence_kords: Dict[str, float | None] = field(default_factory=lambda: {
+    refrence_kords: Dict[str, Any] = field(default_factory=lambda: {
         "xkobez": None, "ykobez": None, "hkobez": None
     }) 
 
