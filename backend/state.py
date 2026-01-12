@@ -2,7 +2,7 @@ from typing import Optional
 from fastapi import HTTPException
 
 from model.project import CATFLOWProject
-
+TEMPLATE_FOLDER: Optional[str] = "IN_TEMPLATEs"
 current_project: Optional[CATFLOWProject] = None
 project_source_path: Optional[str] = None
 

@@ -1,35 +1,69 @@
 from fastapi import HTTPException, APIRouter
-from typing import List, Dict
 from pathlib import Path
-from state import get_project_or_404, set_current_project, project_source_path
+import os
+
+from state import get_project_or_404, set_current_project, project_source_path, TEMPLATE_FOLDER
 from response import ProjectLoadRequest, ProjectSummary
 from model.project import CATFLOWProject
 
 router = APIRouter(prefix="/api/project")
 
+from fastapi import HTTPException, APIRouter
+from pathlib import Path
+import os
+from state import get_project_or_404, set_current_project, project_source_path, TEMPLATE_FOLDER
+from response import ProjectLoadRequest, ProjectSummary
+from model.project import CATFLOWProject
+
+router = APIRouter(prefix="/api/project")
+
+@router.post("/list")
+async def list_project():
+    try:
+        if not os.path.exists(TEMPLATE_FOLDER):
+             raise HTTPException(status_code=500, detail=f"Template folder '{TEMPLATE_FOLDER}' not configured on server")
+             
+        templates = [d for d in os.listdir(TEMPLATE_FOLDER) 
+                     if os.path.isdir(os.path.join(TEMPLATE_FOLDER, d))]
+        
+        return {
+            "status": "success",
+            "data": templates
+        }
+    except Exception as e:
+        print(f"Error listing projects: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to list projects: {str(e)}")
+
 @router.post("/load")
 async def load_project(request: ProjectLoadRequest):
-    """Load a CATFLOW project from a legacy folder"""
+    """Load a CATFLOW project from the template folder"""
     global project_source_path
-    folder_path = request.path
+    
+    # Request path is just the folder name (e.g., "Weiherbach")
+    folder_name = request.path
+    
+    # Construct full path
+    full_path = Path(TEMPLATE_FOLDER) / folder_name
+    
     try:
-        path = Path(folder_path)
-        if not path.exists():
-            raise HTTPException(status_code=404, detail=f"Folder not found: {folder_path}")
+        if not full_path.exists():
+            raise HTTPException(status_code=404, detail=f"Project folder not found: {folder_name}")
             
-        current_project = CATFLOWProject.from_legacy_folder(str(path))
+        print(f"Loading project from: {full_path}")
+        current_project = CATFLOWProject.from_legacy_folder(str(full_path))
         set_current_project(current_project)
-        project_source_path = str(path)
+        project_source_path = str(full_path)
         
         summary_data = await get_project_summary()
         return {
             "status": "success",
-            "message": f"Loaded project from {folder_path}",
+            "message": f"Loaded project {folder_name}",
             "summary": summary_data
         }
     except Exception as e:
-        print(e)
+        print(f"Error loading project: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to load project: {str(e)}")
+
 
 @router.get("/summary", response_model=ProjectSummary)
 async def get_project_summary():
@@ -55,6 +89,7 @@ async def get_run_config():
         return {}
         
     rc = project.run_control
+    # Map your RunControl attributes to the response
     return {
         "timing": {
             "start_time": rc.start_time,
@@ -89,29 +124,33 @@ async def get_project_files():
         "output_files": project.run_control.output_files if project.run_control else []
     }
 
-
 @router.get("/dimensions")
 async def get_project_dimensions():
     """Get global mesh dimensions summary"""
     project = get_project_or_404()
     
-    total_nodes = sum(
-        (h.mesh.n_layers * h.mesh.n_columns) 
-        for h in project.hills 
-        if h.mesh
-    )
+    # Updated to use 'header.iacnv' and 'header.iacnl'
+    total_nodes = 0
+    hill_dims = []
+
+    for h in project.hills:
+        rows = 0
+        cols = 0
+        if h.mesh and h.mesh.header:
+            rows = h.mesh.header.iacnv  # Vertical nodes
+            cols = h.mesh.header.iacnl  # Lateral nodes
+            total_nodes += (rows * cols)
+            
+        hill_dims.append({
+            "id": h.id, 
+            "rows": rows,
+            "cols": cols
+        })
     
     return {
         "n_hills": len(project.hills),
         "total_nodes": total_nodes,
-        "hill_dimensions": [
-            {
-                "id": h.id, 
-                "rows": h.mesh.n_layers if h.mesh else 0,
-                "cols": h.mesh.n_columns if h.mesh else 0
-            } 
-            for h in project.hills
-        ]
+        "hill_dimensions": hill_dims
     }
 
 @router.get("/validation")

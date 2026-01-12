@@ -74,7 +74,7 @@ class CATFLOWProject:
             return pickle.load(f)
 
     @classmethod
-    def from_legacy_folder(cls, folder_path: str, run_filename: str = "run_01.in") -> 'CATFLOWProject':
+    def from_legacy_folder(cls, folder_path: str) -> 'CATFLOWProject':
         """
         Parses a legacy CATFLOW folder structure.
         """
@@ -84,11 +84,10 @@ class CATFLOWProject:
         print(f"Loading Project from: {folder}")
 
         # 1. Global Config (CATFLOW.IN)
-        if (folder / "CATFLOW.IN").exists():
-            project.config = GlobalConfig.from_file(str(folder / "CATFLOW.IN"))
+        project.config = GlobalConfig.from_file(str(folder / "CATFLOW.IN"))
         
-        # 2. Run Control (Parameters only)
-        run_path = folder / run_filename
+        # 2. Run Control
+        run_path = folder / project.config.run_filename
         if not run_path.exists():
             raise FileNotFoundError(f"Run file missing: {run_path}")
             

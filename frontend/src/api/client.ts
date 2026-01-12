@@ -3,6 +3,12 @@ import type { FullProjectData } from '../types';
 const API_BASE = '/api';
 
 export const projectApi = {
+    listProjects: async () => {
+        const res = await fetch(`${API_BASE}/project/list`, { method: 'POST' });
+        if (!res.ok) throw new Error('Failed to list projects');
+        return res.json();
+    },
+
     load: async (folderPath: string) => {
         const res = await fetch(`${API_BASE}/project/load`, {
             method: 'POST',
@@ -36,6 +42,17 @@ export const projectApi = {
 
     fetchWindLibrary: async () => {
         const res = await fetch(`${API_BASE}/wind/library`);
+        return res.json();
+    },
+    fetchPrecipitation: async (index: number) => {
+        const res = await fetch(`${API_BASE}/forcing/precipitation/${index}`);
+        if (!res.ok) throw new Error('Failed to load precipitation');
+        return res.json();
+    },
+
+    fetchClimate: async (index: number) => {
+        const res = await fetch(`${API_BASE}/forcing/climate/${index}`);
+        if (!res.ok) throw new Error('Failed to load climate');
         return res.json();
     },
 

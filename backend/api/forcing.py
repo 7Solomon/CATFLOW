@@ -118,19 +118,19 @@ async def get_landuse_details(type_id: int):
             "definition": None
         }
 
-    # Format the table data
     def_obj = lu_type.definition
+    
     return {
         "id": lu_type.id,
         "name": lu_type.name,
         "definition": {
             "name": def_obj.name,
             "filename": def_obj.filename,
-            "headers": def_obj.header_labels,
+            "headers": def_obj.header_labels, # e.g., ["albedo", "rs_min", "root_depth", "LAI"]
             "table": [
                 {
                     "day": row.day,
-                    "values": row.params
+                    "values": numpy_to_list(row.params) 
                 } 
                 for row in def_obj.table
             ]
@@ -162,7 +162,20 @@ async def get_forcing_files():
     if not project.forcing:
         return {"boundary_files": [], "sink_files": []}
         
+    
+    b_files = []
+    if hasattr(project.forcing, 'boundary_data'):
+        b_files = [f for f in project.forcing.boundary_files]
+    elif hasattr(project.forcing, 'boundary_files'):
+        b_files = project.forcing.boundary_files # If strictly list of strings
+
+    s_files = []
+    if hasattr(project.forcing, 'sink_data'):
+        s_files = [f for f in project.forcing.sink_files]
+    elif hasattr(project.forcing, 'sink_files'):
+        s_files = project.forcing.sink_files
+
     return {
-        "boundary_files": project.forcing.boundary_files,
-        "sink_files": project.forcing.sink_files
+        "boundary_files": b_files,
+        "sink_files": s_files
     }

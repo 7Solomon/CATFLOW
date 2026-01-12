@@ -10,6 +10,7 @@ router = APIRouter(prefix="/api/export")
 async def preview_export(target_folder: str):
     """Preview what files will be created during export"""
     project = get_project_or_404()
+    raise NotImplementedError("YIKES")
     
     files = {
         "Control Files": ["CATFLOW.IN", "run_01.in"],

@@ -202,7 +202,7 @@ class GlobalConfig:
     """
     Wraps CATFLOW.IN, which simply points to the active run file.
     """
-    run_filename: str = "run_01.in"
+    run_filename: Optional[str] = None
     scale_factor: float = 2.0
 
     @classmethod
