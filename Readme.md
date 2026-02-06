@@ -2,6 +2,85 @@
 
 This wrapper provides a Pythonic interface for the legacy Fortran CATFLOW model. It strictly respects the hierarchical data structure of CATFLOW.
 
+
+# Installation & Setup
+
+Follow these steps to set up the development environment locally.
+
+---
+
+## Prerequisites
+
+Make sure you have the following installed:
+
+- **Python**: Version **3.13.5**
+- **Node.js**: Version **18+**
+- **npm** (comes with Node.js)
+
+You can verify your versions with:
+
+```bash
+python --version
+node --version
+```
+
+## Clone the Repository
+```bash
+git clone https://github.com/7Solomon/Statik.git
+cd Statik
+```
+
+### Backend Setup (Python / Flask)
+
+Navigate to the backend directory, create a virtual environment, activate it, and install dependencies.
+```bash
+cd backend
+
+Create virtual environment
+python -m venv .venv
+```
+
+
+**Activate virtual environment**
+
+*Windows (PowerShell):*
+```bash
+.venv\Scripts\activate
+```
+
+*Linux / macOS:*
+```bash
+source .venv/bin/activate
+```
+
+**Install dependencies**
+```bash
+pip install -r requirements.txt
+```
+
+### Frontend Setup (React / Vite)
+
+Open a new terminal, navigate to the frontend directory, and install Node dependencies.
+
+```bash
+cd frontend
+npm install
+```
+
+### Run CATFLOW
+
+There is a script that starts the backend and frontend concurently, inside the root folder ./
+
+*Windows (PowerShell):*
+```bash
+start.ps1
+```
+
+*Linux / macOS:*
+NOT IMPLEMENTED
+
+
+
 ## 1. Data Flow Overview
 
 CATFLOW operates in two distinct phases. This wrapper mirrors that structure to ensure compatibility.
