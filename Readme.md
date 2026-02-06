@@ -3,6 +3,68 @@
 This wrapper provides a Pythonic interface for the legacy Fortran CATFLOW model. It strictly respects the hierarchical data structure of CATFLOW.
 
 
+## User Interface Workflow
+
+Once the application is running, the dashboard allows you to inspect and verify the CATFLOW file structure visually.
+
+### 1. Project Selection
+Upon launching, you are greeted with the start page. The application allows you to browse and load a specific CATFLOW project folder (e.g., `01`, `02`).
+
+<p align="center">
+  <img src="assets/start_page.png" width="700" alt="Start Page">
+  <br>
+  <em>Initial landing page waiting for input</em>
+</p>
+
+<p align="center">
+  <img src="assets/load_project_modal.png" width="400" alt="Project Selection">
+  <br>
+  <em>Selecting a legacy project folder to parse</em>
+</p>
+
+### 2. Project Dashboard
+Once loaded, the **Overview** tab provides a health check of the simulation. It displays global statistics, such as the total number of nodes and simulated hills, ensuring the Fortran files were parsed correctly by the Python backend.
+
+<p align="center">
+  <img src="assets/overview.png" width="700" alt="Dashboard Overview">
+</p>
+
+### Global Config & Run Control
+The `GlobalConfig` and `RunControl` classes map to `CATFLOW.IN` and `run_*.in`. They control simulation timing, solver methods (e.g., PIC), and numerical stability parameters.
+
+<p align="center">
+  <img src="assets/config.png" width="700" alt="Configuration Panel">
+  <br>
+  <em>Visualization of time steps and solver settings parsed from run files</em>
+</p>
+
+### Physics Libraries
+*   **Soil (`SoilLibrary`):** Defines physical soil parameters (Van Genuchten model). The UI plots these parameters to help verify hydraulic conductivity ($K_{sat}$) and porosity.
+    <p align="center">
+      <img src="assets/soil.png" width="700" alt="Soil Library">
+    </p>
+
+*   **Vegetation (`LandUseLibrary`):** Defines plant types and their seasonal evolution (Root depth, Leaf Area Index). The timeline view visualizes how land use changes over the simulation period.
+    <p align="center">
+      <img src="assets/land_use.png" width="700" alt="Land Use Timeline">
+    </p>
+
+### Drivers (`ForcingConfiguration`)
+External forces acting on the system are loaded into memory objects (`PrecipitationData`, `ClimateData`, `WindLibrary`). The UI allows you to inspect raw time-series data and wind exposure factors.
+
+<p align="center">
+  <img src="assets/precipitation.png" width="700" alt="Precipitation Data">
+  <br>
+  <em>Inspection of rainfall intensity time series (*.dat files)</em>
+</p>
+
+<p align="center">
+  <img src="assets/wind.png" width="700" alt="Wind Sectors">
+  <br>
+  <em>Wind exposure factors broken down by directional sectors</em>
+</p>
+
+
 ## Installation & Setup
 
 Follow these steps to set up the development environment locally.
@@ -78,67 +140,6 @@ start.ps1
 
 *Linux / macOS:*
 NOT IMPLEMENTED
-
-# User Interface Workflow
-
-Once the application is running, the dashboard allows you to inspect and verify the CATFLOW file structure visually.
-
-### 1. Project Selection
-Upon launching, you are greeted with the start page. The application allows you to browse and load a specific CATFLOW project folder (e.g., `01`, `02`).
-
-<p align="center">
-  <img src="assets/start_page.png" width="700" alt="Start Page">
-  <br>
-  <em>Initial landing page waiting for input</em>
-</p>
-
-<p align="center">
-  <img src="assets/load_project_modal.png" width="400" alt="Project Selection">
-  <br>
-  <em>Selecting a legacy project folder to parse</em>
-</p>
-
-### 2. Project Dashboard
-Once loaded, the **Overview** tab provides a health check of the simulation. It displays global statistics, such as the total number of nodes and simulated hills, ensuring the Fortran files were parsed correctly by the Python backend.
-
-<p align="center">
-  <img src="assets/overview.png" width="700" alt="Dashboard Overview">
-</p>
-
-### Global Config & Run Control
-The `GlobalConfig` and `RunControl` classes map to `CATFLOW.IN` and `run_*.in`. They control simulation timing, solver methods (e.g., PIC), and numerical stability parameters.
-
-<p align="center">
-  <img src="assets/config.png" width="700" alt="Configuration Panel">
-  <br>
-  <em>Visualization of time steps and solver settings parsed from run files</em>
-</p>
-
-### Physics Libraries
-*   **Soil (`SoilLibrary`):** Defines physical soil parameters (Van Genuchten model). The UI plots these parameters to help verify hydraulic conductivity ($K_{sat}$) and porosity.
-    <p align="center">
-      <img src="assets/soil.png" width="700" alt="Soil Library">
-    </p>
-
-*   **Vegetation (`LandUseLibrary`):** Defines plant types and their seasonal evolution (Root depth, Leaf Area Index). The timeline view visualizes how land use changes over the simulation period.
-    <p align="center">
-      <img src="assets/land_use.png" width="700" alt="Land Use Timeline">
-    </p>
-
-### Drivers (`ForcingConfiguration`)
-External forces acting on the system are loaded into memory objects (`PrecipitationData`, `ClimateData`, `WindLibrary`). The UI allows you to inspect raw time-series data and wind exposure factors.
-
-<p align="center">
-  <img src="assets/precipitation.png" width="700" alt="Precipitation Data">
-  <br>
-  <em>Inspection of rainfall intensity time series (*.dat files)</em>
-</p>
-
-<p align="center">
-  <img src="assets/wind.png" width="700" alt="Wind Sectors">
-  <br>
-  <em>Wind exposure factors broken down by directional sectors</em>
-</p>
 
 
 ## 1. Data Flow Overview
@@ -235,6 +236,6 @@ When calling `write_to_folder`, the wrapper enforces a clean, standardized folde
 *   `in/hill_n/` -> All spatial files for Hill n.
 *   **Data Serialization:** It re-writes all `.dat` files (climate, precip) from memory into the new structure, ensuring the project is self-contained.
 
-### Matrix vs. Block Mode
+### Matrix vs. Block Mode (NOT COMPLETLY IMPLEMENTED Matrix Mode not good!)
 *   **Reading:** The wrapper supports both legacy "Block Mode" (Range indices 0.0-1.0) and "Matrix Mode".
-*   **Writing:** The wrapper **standardizes to Matrix Mode** for files like `.bod`, `.mak`, and `.ini`. This rasterizes blocks into explicit grid values, which is safer and less ambiguous for the solver.
+*   **Writing:** The wrapper **standardizes to Matrix Mode** for files like `.bod`, `.mak`, and `.ini`. This rasterizes blocks into explicit grid values, which should be safer and less ambiguous for the solver, but not sure.
