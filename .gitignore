@@ -1,6 +1,11 @@
+# FILE MANAGEMENT STUFF
+workspaces/
+
+# Backend
 /backend/.venv/
 __pycache__
 .vscode/
+backend/ft_backend/*
 
 ### FRONTEND
 # Logs

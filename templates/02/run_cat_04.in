@@ -1,0 +1,58 @@
+29.05.2016 00:00:00.00         % Startzeit                                                
+29.05.2016 23:55:00.00         % Endzeit                                                  
+        0.0                    % Zeit Offset                                              
+pic                            % Berechnungsverfahren (exp, adi, apk, bcg, pic, mix)      
+      300.                     % dtbach [s]                                               
+        5.e-7                  % qtol   [cbm/s pro s]                                     
+ 88864000.                     % dtmax [s]                                               
+        1.0                    % dtmin [s]                                               
+       10.00                   % dt [s] (Startzeitschritt)                                
+        0.01                   % dThopt [-] Steuerpar. fuer Zeitschritt                 
+        0.01                   % dPhiopt [-]    Steuerpar. fuer Zeitschritt             
+         3                     % ngr (3) ab ngr Picardit. nur Zeitschr.Reduk.           
+         7                     % itmax (7) max. Picarditerationen                        
+        1.e-3                  % piceps [-] (1.e-3) Iterationsziel Picard                 
+        5.e-6                  % cgeps  [m] (5.e-6) Iterationsziel Konj.Grad.             
+       15.                     % rlongi Bezugslaenge fuer Uhrzeit (hier: MEZ)             
+        8.75                   % longi  Bezugslaenge des EZG                              
+       49.13                   % lati   Bezugsbreite  des EZG                             
+       0                      % istact Anzahl der verschiendenen Stoffe                  
+       -80                     % seed fuer Zufallszahlengenerator                         
+noiact			       % Randbedingungstyp fuer Stoffinput                                       
+     18                       % Anzahl der Ausgabefiles                                   
+0 1 1  0 0 1  0 0 0  1 1 0 0 0 0 0 0 0 0                                                    
+out/log.out                   % ofile(1)  Log-file  
+out/vgtab.out                 % ofile(2)  tables fo soil hydraulic properties 
+out/bilanz_04.csv                % ofile(3)  water balance file  
+out/theta_04.out                 % ofile(4)  soil water content  
+out/psi_04.out                   % ofile(5)  suction head  
+out/psi_04.fin                   % ofile(6)  final state (suction head
+out/flxsi.out                 % ofile(7)  water flux in xsi-direction (lateral) 
+out/fleta.out                 % ofile(8)  water flux in eta-direction (vertical) 
+out/senken.out                % ofile(9)  sinks [qm/s]  
+out/qoben.out                 % ofile(10) Surface runoff[cbm/s]  
+out/etinz.out                 % ofile(11) Evapotranspiration  
+out/gang.out                  % ofile(12) channel flow  
+out/ve.out                    % ofile(13) generalised pore water velocity in eta-direction  
+out/vx.out                    % ofile(14) generalised pore water velocity in xsi-direction  
+out/c.out                     % ofile(15) residual solute concentrations  
+out/hko.out                   % ofile(16) vertical hillslope coordinates (grid nodes) Rehe/in/ebnitbach.def  
+out/sko.out                    % ofile(17) lateral hillslope coordinates (grid nodes) Rehe/in/ebnitsoilcp.def
+out/relsat.out                 % ofile(18) relative Saturation
+ 
+           4
+in/soil/soil_def.txt
+in/control/zeitclas.def
+in/landuse/landuseclass.def
+in/climate/WINDRICH.DEF
+          -1
+in/hillgeo/rep_hill_04.geo
+in/soil/soil_rel.txt
+in/soil/ksmult04.dat
+in/soil/thsmult04.dat
+in/soil/macropores.dat
+in/control/cont_vol.dat
+in/soil/rel_sat_2m.ini
+in/control/printout_min.prt
+in/landuse/surface_04.pob
+in/control/boundary.dat                                                                      

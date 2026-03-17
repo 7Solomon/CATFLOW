@@ -1,0 +1,57 @@
+01.01.2004 00:00:00.00          % start time                                                                                                       
+01.02.2004 00:00:00.00          % end time                                                                                                         
+        0.0                     % offset                                                                                                           
+pic                             % computation method (exp, adi, apk, bcg, pic, mix)                                                                
+       3600.                    % dtbach [s] maximum time step for drainage network                                                                
+          1.e-6                 % qtol  threshold for starting drainage networt computation [cbm/s pro s]                                          
+      86400.                    % dt_max [s] max. time step                                                                                        
+          0.01                  % dt_min [s] min. time step                                                                                        
+         10.00                  % dt [s] (Startzeitschritt) initial time step                                                                      
+          0.030                 % d_Th_opt [-] optimum change of soil moisture                                                                     
+          0.030                 % d_Phi_opt [-] optimum change of suction head                                                                     
+          5                     % n_gr (3) threshold for reducing time step but carrying on the actual iteration                                   
+         12                     % it_max (7) max. number of Picard-iterations                                                                      
+          1.e-3                 % piceps [-] (1.e-3) convergence criterium for Picard iteration                                                    
+          5.e-6                 % cgeps  [m] (5.e-6) convergence criterium for cg method.                                                          
+         15.                    % rlongi longitude for computation of time (CET)                                                                   
+          9.746                 % longi  reference longitude of the Ebnit catchment                                                                
+         47.35                  % lati   reference latitude of the Ebnit catchment                                                                 
+          0                     % istact number of solutes accounted for                                                                           
+        -80		        % Seed for random number generator                                                                                 
+noiact                          % switch for simulation of interaction between subsurface and channel water (simact -> yes, noiact -> no)          
+     18                         % number of output files                                                                                 
+0 1 1  0 0 0  1 0 0  1 1 0 0 0 0 0 0 1
+out/log.out                     % ofile(1)  Log-file                                                                                              
+out/vg_tab.out                  % ofile(2)  tables fo soil hydrailic properties                                         
+out/bilanz.csv                  % ofile(3)  water balance file                                                          
+out/theta.out                   % ofile(4)  soil water content                                                          
+out/psi.out                     % ofile(5)  suction head                                                                
+out/psi.fin                     % ofile(6)  final state (suction head, may be used as initial state for new simulations)
+out/fl_xsi.out                  % ofile(7)  water flux in xsi-direction (lateral)                                       
+out/fl_eta.out                  % ofile(8)  water flux in eta-direction (vertical)                                      
+out/senken.out                  % ofile(9)  sinks [qm/s]                                                                
+out/qoben.out                   % ofile(10) Surface runoff[cbm/s]                                                       
+out/evapo.out                   % ofile(11) Evapotranspiration                                                          
+out/gang.out                    % ofile(12) channel flow                                                                
+out/ve.out                      % ofile(13) generalised pore water velocity in eta-direction                            
+out/vx.out                      % ofile(14) generalised pore water velocity in eta-direction                            
+out/c.out                       % ofile(15) residual solute concentrations                                              
+out/hko.out                     % ofile(16) vertical hillslope coordinates (grid nodes)                                 
+out/sko.out                     % ofile(17) lateral hillslope coordinates (grid nodes)                                  
+out/relsat.out                  % ofile(18) relative Saturation                                                         
+	  4            
+in/soil/soils.def           
+in/control/timeser.def         
+in/landuse/lu_file.def 
+in/climate/winddir.def         
+          -1            
+in/hillgeo/hang1.geo           
+in/soil/soil_horizons.bod
+in/soil/kstat_1515.dat
+in/soil/thstat_1515.dat   
+in/soil/profil.mak          
+in/control/cont_vol.cv         
+in/soil/rel_sat.ini        
+in/control/printout.prt        
+in/landuse/surface.pob         
+in/control/boundary.rb         

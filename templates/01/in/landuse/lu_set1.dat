@@ -1,0 +1,4 @@
+1               % columnnumber to be read
+11  1           % wiese
+22  2           % Laubwald
+33  3		% Nadelwald

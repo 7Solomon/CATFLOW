@@ -1,0 +1,25 @@
+NIEDERSCHLAG
+1
+in/precip/precip_5min.dat
+
+RANDBEDINGUNGEN
+0
+in/irrigation.dat
+in/suction.dat
+in/suction_con.dat
+
+SENKEN
+0
+
+Masse an Stoffen
+0
+in/stoffe/stoffe.in
+
+LANDNUTZUNG
+in/landuse/landuse_start.def            %  Landnutzungszeitreihe
+
+
+KLIMA
+1
+in/climate/evaporation.dat
+
