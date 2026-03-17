@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Download, AlertTriangle, FileText, ChevronRight, ChevronDown, Folder, CheckCircle } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { projectApi } from '../../api/client'; // Adjust path based on your structure
 
 interface ExportPreview {
@@ -10,6 +11,7 @@ interface ExportPreview {
 }
 
 export const ExportPanel = () => {
+    const { t } = useTranslation();
     const [preview, setPreview] = useState<ExportPreview | null>(null);
     const [loading, setLoading] = useState(false);
 
@@ -30,14 +32,14 @@ export const ExportPanel = () => {
         return (
             <div className="flex flex-col items-center justify-center py-20 bg-slate-800/30 rounded-xl border border-dashed border-slate-700">
                 <Download className="w-16 h-16 text-slate-600 mb-4" />
-                <h3 className="text-xl font-semibold text-slate-300 mb-2">Ready to Export?</h3>
-                <p className="text-slate-500 mb-6">Generate a preview to check all files before writing to disk.</p>
+                <h3 className="text-xl font-semibold text-slate-300 mb-2">{t('panels.export.title')}</h3>
+                <p className="text-slate-500 mb-6">{t('panels.export.description')}</p>
                 <button
                     onClick={handleGeneratePreview}
                     disabled={loading}
                     className="px-6 py-3 bg-gradient-to-r from-emerald-500 to-green-600 rounded-lg font-semibold hover:shadow-lg hover:shadow-green-500/20 transition-all text-white disabled:opacity-50"
                 >
-                    {loading ? 'Analyzing Project...' : 'Generate Export Preview'}
+                    {loading ? t('panels.export.analyzing') : t('panels.export.generatePreview')}
                 </button>
             </div>
         );
@@ -48,20 +50,20 @@ export const ExportPanel = () => {
             {/* Summary Header */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="bg-slate-800/50 p-6 rounded-xl border border-slate-700">
-                    <div className="text-slate-400 text-sm mb-1">Total Files</div>
+                    <div className="text-slate-400 text-sm mb-1">{t('panels.export.totalFiles')}</div>
                     <div className="text-3xl font-bold text-white">{preview.total_files}</div>
                 </div>
                 <div className="bg-slate-800/50 p-6 rounded-xl border border-slate-700">
-                    <div className="text-slate-400 text-sm mb-1">Target Folder</div>
+                    <div className="text-slate-400 text-sm mb-1">{t('panels.export.targetFolder')}</div>
                     <div className="text-lg font-mono text-emerald-400 truncate" title={preview.target_folder}>
                         ./{preview.target_folder}
                     </div>
                 </div>
                 <div className={`p-6 rounded-xl border ${preview.warnings.length > 0 ? 'bg-amber-500/10 border-amber-500/30' : 'bg-slate-800/50 border-slate-700'}`}>
-                    <div className="text-slate-400 text-sm mb-1">Status</div>
+                    <div className="text-slate-400 text-sm mb-1">{t('panels.export.status')}</div>
                     <div className={`text-lg font-bold flex items-center gap-2 ${preview.warnings.length > 0 ? 'text-amber-400' : 'text-green-400'}`}>
                         {preview.warnings.length > 0 ? <AlertTriangle className="w-5 h-5" /> : <CheckCircle className="w-5 h-5" />}
-                        {preview.warnings.length > 0 ? `${preview.warnings.length} Warnings` : 'Ready'}
+                        {preview.warnings.length > 0 ? t('panels.export.warnings', { count: preview.warnings.length }) : t('panels.export.ready')}
                     </div>
                 </div>
             </div>
@@ -70,7 +72,7 @@ export const ExportPanel = () => {
             {preview.warnings.length > 0 && (
                 <div className="bg-amber-950/30 border border-amber-500/30 rounded-xl p-4">
                     <h4 className="font-semibold text-amber-400 mb-2 flex items-center gap-2">
-                        <AlertTriangle className="w-4 h-4" /> configuration Issues
+                        <AlertTriangle className="w-4 h-4" /> {t('panels.export.issues')}
                     </h4>
                     <ul className="list-disc list-inside space-y-1 text-sm text-amber-200/80">
                         {preview.warnings.map((w, i) => <li key={i}>{w}</li>)}
@@ -81,7 +83,7 @@ export const ExportPanel = () => {
             {/* File Tree */}
             <div className="bg-slate-900/50 rounded-xl border border-slate-700 overflow-hidden">
                 <div className="p-4 bg-slate-800/50 border-b border-slate-700 font-semibold text-slate-300">
-                    File Structure Preview
+                    {t('panels.export.fileStructure')}
                 </div>
                 <div className="p-4 space-y-2">
                     {Object.entries(preview.files_to_create).map(([category, files]) => (

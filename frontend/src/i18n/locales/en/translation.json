@@ -1,0 +1,124 @@
+{
+    "common": {
+        "appName": "CATFLOW",
+        "appSubtitle": "Hydrological Data Vis Stuff",
+        "loading": "Loading...",
+        "loadProject": "Load Project",
+        "switchProject": "Switch Project",
+        "retry": "Retry",
+        "yes": "Yes",
+        "no": "No"
+    },
+    "app": {
+        "noProjectLoaded": "No Project Loaded",
+        "selectTemplate": "Select a template folder to begin visualization",
+        "browseProjects": "Browse Projects"
+    },
+    "hillVisualizer": {
+        "soilTypes": "Soil types",
+        "ksatScaling": "Ksat scaling",
+        "thetaSScaling": "θs scaling",
+        "initialSaturation": "Initial sat.",
+        "macropores": "Macropores",
+        "lockAspectRatio": "Lock aspect ratio",
+        "loadingMesh": "Loading mesh…",
+        "surface": "Surface",
+        "nodeInspector": "Node inspector",
+        "nodeIndex": "Index",
+        "coordinateX": "X (sko)",
+        "coordinateZ": "Z (hko)"
+    },
+    "modals": {
+        "loadProject": {
+            "title": "Select Project",
+            "loadError": "Failed to load project list",
+            "noProjects": "No projects found in template folder.",
+            "hint": "Select a folder to initialize the workspace"
+        }
+    },
+    "panels": {
+        "config": {
+            "noConfig": "No configuration loaded",
+            "timing": "Simulation Timing",
+            "solver": "Solver Settings",
+            "location": "Global Location",
+            "paramStartTime": "Start Time",
+            "paramEndTime": "End Time",
+            "paramMaxTimeStep": "Max Time Step",
+            "paramMinTimeStep": "Min Time Step",
+            "paramInitialStep": "Initial Step",
+            "paramTimeOffset": "Time Offset",
+            "paramMethod": "Method",
+            "paramMaxIterations": "Max Iterations",
+            "paramPicardEpsilon": "Picard Epsilon",
+            "paramCGEpsilon": "CG Epsilon",
+            "paramThetaOpt": "Theta Opt",
+            "paramPhiOpt": "Phi Opt",
+            "paramLatitude": "Latitude",
+            "paramLongitude": "Longitude",
+            "paramRefLongitude": "Ref. Longitude"
+        },
+        "export": {
+            "title": "Ready to Export?",
+            "description": "Generate a preview to check all files before writing to disk.",
+            "analyzing": "Analyzing Project...",
+            "generatePreview": "Generate Export Preview",
+            "totalFiles": "Total Files",
+            "targetFolder": "Target Folder",
+            "status": "Status",
+            "warnings": "{{count}} Warnings",
+            "ready": "Ready",
+            "issues": "configuration Issues",
+            "fileStructure": "File Structure Preview"
+        },
+        "forcing": {
+            "precipitation": "Precipitation",
+            "climate": "Climate",
+            "landUse": "Land Use",
+            "wind": "Wind",
+            "availableFiles": "Available Files",
+            "noFiles": "No files loaded.",
+            "loadingData": "Loading data...",
+            "dataPreview": "Data Preview",
+            "factorT": "Factor T",
+            "selectFile": "Select a file to view data",
+            "chooseFromList": "Choose from the list on the left",
+            "simulationTimeline": "Simulation Timeline",
+            "plantLibrary": "Plant Library",
+            "defined": "Defined",
+            "source": "Source",
+            "day": "Day",
+            "sector": "Sector",
+            "exposureFactor": "Exposure Factor"
+        },
+        "hills": {
+            "title": "Hills",
+            "details": "Hill {{name}} Details",
+            "totalNodes": "Total Nodes",
+            "dimensions": "Dimensions",
+            "soilMaps": "Soil Maps",
+            "meshVisualization": "Mesh Visualization"
+        },
+        "overview": {
+            "health": "Project Health",
+            "valid": "Configuration Valid",
+            "issues": "Issues Detected",
+            "validating": "Running validation...",
+            "dimensions": "Global Mesh Dimensions",
+            "totalNodes": "Total Nodes",
+            "simulatedHills": "Simulated Hills"
+        },
+        "results": {
+            "noResults": "No simulation results found.",
+            "hint": "Run the simulation to generate output data.",
+            "title": "Simulation Results",
+            "waterBalance": "Water Balance",
+            "showing": "Showing first {{first}} timesteps of {{total}}",
+            "loading": "Loading water balance..."
+        },
+        "soil": {
+            "title": "Soil Library ({{count}} types)",
+            "generateCurve": "Generate Hydraulic Curve"
+        }
+    }
+}

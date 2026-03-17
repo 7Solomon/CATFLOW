@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import type { Hill } from '../../types';
+import { useTranslation } from 'react-i18next';
 import { HillVisualizer } from '../HillVisualizer';
 
 export const HillsPanel = ({ hills }: { hills: Hill[] }) => {
+    const { t } = useTranslation();
     const [selectedHillId, setSelectedHillId] = useState<number | null>(hills[0]?.id || null);
     const selectedHill = hills.find(h => h.id === selectedHillId);
 
@@ -11,7 +13,7 @@ export const HillsPanel = ({ hills }: { hills: Hill[] }) => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* List */}
             <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-700">
-                <h3 className="text-xl font-semibold mb-4">Hills</h3>
+                <h3 className="text-xl font-semibold mb-4">{t('panels.hills.title')}</h3>
                 <div className="space-y-2">
                     {hills.map(hill => (
                         <button
@@ -32,15 +34,15 @@ export const HillsPanel = ({ hills }: { hills: Hill[] }) => {
             {/* Details */}
             {selectedHill && (
                 <div className="lg:col-span-2 bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-700">
-                    <h3 className="text-xl font-semibold mb-4">Hill {selectedHill.name} Details</h3>
+                    <h3 className="text-xl font-semibold mb-4">{t('panels.hills.details', { name: selectedHill.name })}</h3>
                     <div className="grid grid-cols-2 gap-4 text-sm text-slate-300">
-                        <div>Total Nodes: <span className="font-mono text-white">{selectedHill.total_nodes}</span></div>
-                        <div>Dimensions: <span className="font-mono text-white">{selectedHill.n_layers} rows × {selectedHill.n_columns} cols</span></div>
-                        <div>Soil Maps: <span className="font-mono text-white">{selectedHill.has_soil_map ? 'Yes' : 'No'}</span></div>
+                        <div>{t('panels.hills.totalNodes')}: <span className="font-mono text-white">{selectedHill.total_nodes}</span></div>
+                        <div>{t('panels.hills.dimensions')}: <span className="font-mono text-white">{selectedHill.n_layers} rows × {selectedHill.n_columns} cols</span></div>
+                        <div>{t('panels.hills.soilMaps')}: <span className="font-mono text-white">{selectedHill.has_soil_map ? t('common.yes') : t('common.no')}</span></div>
                     </div>
                     {/* Add Visualizer */}
                     <div className="space-y-2">
-                        <h4 className="text-slate-400 font-medium text-sm uppercase tracking-wider">Mesh Visualization</h4>
+                        <h4 className="text-slate-400 font-medium text-sm uppercase tracking-wider">{t('panels.hills.meshVisualization')}</h4>
                         <HillVisualizer hillId={selectedHill.id} />
                     </div>
 

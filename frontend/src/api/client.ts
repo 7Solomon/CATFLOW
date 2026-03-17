@@ -70,7 +70,7 @@ export const projectApi = {
         return res.json();
     },
 
-    fetchHillMap: async (hillId: number, mapType: 'mesh' | 'soil-map' | 'surface-map' | 'boundary' | 'macropores') => {
+    fetchHillMap: async (hillId: number, mapType: string) => {
         const res = await fetch(`${API_BASE}/hills/${hillId}/${mapType}`);
         return res.json();
     },

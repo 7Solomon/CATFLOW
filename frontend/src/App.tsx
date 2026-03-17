@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Loader2, Upload, AlertCircle } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useProject } from './hooks/useProject';
 import { OverviewPanel } from './components/panels/OverviewPanel';
 import { SoilPanel } from './components/panels/SoilPanel';
@@ -7,9 +8,10 @@ import { HillsPanel } from './components/panels/HillsPanel';
 import { ForcingPanel } from './components/panels/ForcingPanel';
 import { ExportPanel } from './components/panels/ExportPanel';
 import { ConfigPanel } from './components/panels/ConfigPanel';
-import { LoadProjectModal } from './components/modals/LoadprojectModal';
+import { LoadProjectModal } from './components/modals/LoadProjectModal';
 
 function App() {
+  const { t } = useTranslation();
   const { data: project, loading, error, loadProject } = useProject();
   const [activeTab, setActiveTab] = useState('overview');
   const [isLoadModalOpen, setIsLoadModalOpen] = useState(false); // State for modal
@@ -36,9 +38,9 @@ function App() {
         <div className="mb-8 flex justify-between items-center">
           <div>
             <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
-              CATFLOW
+              {t('common.appName')}
             </h1>
-            <p className="text-slate-400 mt-2">Hydrological Data Vis Stuff</p>
+            <p className="text-slate-400 mt-2">{t('common.appSubtitle')}</p>
           </div>
 
           <button
@@ -47,7 +49,7 @@ function App() {
             className="px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-lg font-semibold hover:shadow-lg transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? <Loader2 className="animate-spin" /> : <Upload />}
-            {loading ? 'Loading...' : (project ? 'Switch Project' : 'Load Project')}
+            {loading ? t('common.loading') : (project ? t('common.switchProject') : t('common.loadProject'))}
           </button>
         </div>
 
@@ -91,13 +93,13 @@ function App() {
         {!project && !loading && (
           <div className="flex flex-col items-center justify-center h-[60vh] text-slate-500 border-2 border-dashed border-slate-700 rounded-3xl bg-slate-800/20">
             <Upload size={64} className="mb-6 opacity-20" />
-            <h2 className="text-2xl font-semibold mb-2">No Project Loaded</h2>
-            <p className="mb-8">Select a template folder to begin visualization</p>
+            <h2 className="text-2xl font-semibold mb-2">{t('app.noProjectLoaded')}</h2>
+            <p className="mb-8">{t('app.selectTemplate')}</p>
             <button
               onClick={() => setIsLoadModalOpen(true)}
               className="px-8 py-3 bg-slate-800 hover:bg-slate-700 rounded-full font-medium transition-colors border border-slate-600 hover:border-indigo-400 hover:text-indigo-300"
             >
-              Browse Projects
+              {t('app.browseProjects')}
             </button>
           </div>
         )}

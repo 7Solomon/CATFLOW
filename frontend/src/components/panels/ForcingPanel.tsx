@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { CloudRain, Sun, Wind, Layers, ChevronDown, ChevronRight, FileText, BarChart3, Clock, Loader2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { projectApi } from '../../api/client';
 
 // Simple table component for previewing time series data
@@ -58,6 +59,7 @@ const TimeSeriesPreview = ({ data, type }: { data: any, type: 'precip' | 'climat
 };
 
 export const ForcingPanel = ({ forcing }: { forcing: any }) => {
+    const { t } = useTranslation();
     const [activeTab, setActiveTab] = useState<'precip' | 'climate' | 'landuse' | 'wind'>('precip');
 
     // --- State: Land Use & Wind ---
@@ -124,17 +126,17 @@ export const ForcingPanel = ({ forcing }: { forcing: any }) => {
             {/* Tabs Header */}
             <div className="flex border-b border-slate-700 mb-6 bg-slate-900/50 rounded-t-lg">
                 {[
-                    { id: 'precip', label: 'Precipitation', icon: CloudRain },
-                    { id: 'climate', label: 'Climate', icon: Sun },
-                    { id: 'landuse', label: 'Land Use', icon: Layers },
-                    { id: 'wind', label: 'Wind', icon: Wind },
+                    { id: 'precip', label: t('panels.forcing.precipitation'), icon: CloudRain },
+                    { id: 'climate', label: t('panels.forcing.climate'), icon: Sun },
+                    { id: 'landuse', label: t('panels.forcing.landUse'), icon: Layers },
+                    { id: 'wind', label: t('panels.forcing.wind'), icon: Wind },
                 ].map(tab => (
                     <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id as any)}
                         className={`flex items-center gap-2 px-6 py-4 border-b-2 transition-all font-medium ${activeTab === tab.id
-                                ? 'border-indigo-500 text-indigo-400 bg-slate-800/50'
-                                : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/30'
+                            ? 'border-indigo-500 text-indigo-400 bg-slate-800/50'
+                            : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/30'
                             }`}
                     >
                         <tab.icon size={18} />
@@ -151,7 +153,7 @@ export const ForcingPanel = ({ forcing }: { forcing: any }) => {
                         {/* Sidebar: File List */}
                         <div className="col-span-3 border-r border-slate-700 pr-4 space-y-3 overflow-y-auto">
                             <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 px-2">
-                                Available Files
+                                {t('panels.forcing.availableFiles')}
                             </h3>
 
                             {(activeTab === 'precip' ? forcing.precip_filenames : forcing.climate_filenames).map((fname: string, idx: number) => (
@@ -159,8 +161,8 @@ export const ForcingPanel = ({ forcing }: { forcing: any }) => {
                                     key={idx}
                                     onClick={() => handleFileSelect(idx)}
                                     className={`w-full text-left p-3 rounded-lg border transition-all flex items-center justify-between group ${selectedFileIndex === idx
-                                            ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg ring-1 ring-indigo-400'
-                                            : 'bg-slate-800 border-slate-700 text-slate-300 hover:border-slate-500 hover:bg-slate-700'
+                                        ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg ring-1 ring-indigo-400'
+                                        : 'bg-slate-800 border-slate-700 text-slate-300 hover:border-slate-500 hover:bg-slate-700'
                                         }`}
                                 >
                                     <div className="flex items-center gap-3 overflow-hidden">
@@ -173,7 +175,7 @@ export const ForcingPanel = ({ forcing }: { forcing: any }) => {
 
                             {(activeTab === 'precip' ? forcing.precip_filenames : forcing.climate_filenames).length === 0 && (
                                 <div className="text-slate-500 text-sm italic p-4 text-center border border-dashed border-slate-800 rounded-lg">
-                                    No files loaded.
+                                    {t('panels.forcing.noFiles')}
                                 </div>
                             )}
                         </div>
@@ -183,19 +185,19 @@ export const ForcingPanel = ({ forcing }: { forcing: any }) => {
                             {loadingFile ? (
                                 <div className="flex flex-col items-center justify-center h-full text-slate-500 gap-3">
                                     <Loader2 className="animate-spin text-indigo-500" size={32} />
-                                    <span>Loading data...</span>
+                                    <span>{t('panels.forcing.loadingData')}</span>
                                 </div>
                             ) : fileData ? (
                                 <div className="flex flex-col h-full animate-in fade-in duration-300">
                                     <div className="flex items-center justify-between mb-4 shrink-0">
                                         <h3 className="text-xl font-light text-white flex items-center gap-2">
                                             <BarChart3 className="text-indigo-400" />
-                                            Data Preview
+                                            {t('panels.forcing.dataPreview')}
                                         </h3>
                                         <div className="flex gap-2">
                                             {fileData.factor_t && (
                                                 <div className="text-xs font-mono bg-slate-800 border border-slate-700 px-2 py-1 rounded text-slate-400">
-                                                    Factor T: {fileData.factor_t}
+                                                    {t('panels.forcing.factorT')}: {fileData.factor_t}
                                                 </div>
                                             )}
                                         </div>
@@ -211,8 +213,8 @@ export const ForcingPanel = ({ forcing }: { forcing: any }) => {
                                     ) : (
                                         <Sun size={64} className="mb-4 opacity-20" />
                                     )}
-                                    <p className="text-lg font-medium">Select a file to view data</p>
-                                    <p className="text-sm text-slate-500">Choose from the list on the left</p>
+                                    <p className="text-lg font-medium">{t('panels.forcing.selectFile')}</p>
+                                    <p className="text-sm text-slate-500">{t('panels.forcing.chooseFromList')}</p>
                                 </div>
                             )}
                         </div>
@@ -226,7 +228,7 @@ export const ForcingPanel = ({ forcing }: { forcing: any }) => {
                         {timeline && (
                             <div className="space-y-4">
                                 <h3 className="text-slate-300 font-medium flex items-center gap-2 border-b border-slate-800 pb-2">
-                                    <Clock size={18} className="text-indigo-400" /> Simulation Timeline
+                                    <Clock size={18} className="text-indigo-400" /> {t('panels.forcing.simulationTimeline')}
                                 </h3>
                                 <div className="bg-slate-800 rounded-lg overflow-hidden border border-slate-700 shadow-sm">
                                     {timeline.periods.map((p: any, i: number) => (
@@ -260,7 +262,7 @@ export const ForcingPanel = ({ forcing }: { forcing: any }) => {
                         {/* Library Section */}
                         <div>
                             <h3 className="text-slate-300 font-medium mb-4 flex items-center gap-2 border-b border-slate-800 pb-2">
-                                <Layers size={18} className="text-indigo-400" /> Plant Library
+                                <Layers size={18} className="text-indigo-400" /> {t('panels.forcing.plantLibrary')}
                             </h3>
                             <div className="space-y-2">
                                 {landUseTypes.map(type => (
@@ -279,7 +281,7 @@ export const ForcingPanel = ({ forcing }: { forcing: any }) => {
                                             </div>
                                             {type.has_definition && (
                                                 <span className="text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-1 rounded">
-                                                    Defined
+                                                    {t('panels.forcing.defined')}
                                                 </span>
                                             )}
                                         </button>
@@ -290,7 +292,7 @@ export const ForcingPanel = ({ forcing }: { forcing: any }) => {
                                                 <div className="flex justify-between items-center mb-3">
                                                     <div className="text-xs text-slate-400 flex items-center gap-2">
                                                         <FileText size={12} />
-                                                        Source: <span className="text-slate-300 font-mono">{typeDetails.definition.filename}</span>
+                                                        {t('panels.forcing.source')}: <span className="text-slate-300 font-mono">{typeDetails.definition.filename}</span>
                                                     </div>
                                                 </div>
 
@@ -298,7 +300,7 @@ export const ForcingPanel = ({ forcing }: { forcing: any }) => {
                                                     <table className="w-full text-xs text-right">
                                                         <thead className="text-slate-400 font-mono bg-slate-800">
                                                             <tr>
-                                                                <th className="p-2 text-left bg-slate-800/80 sticky left-0 z-10">Day</th>
+                                                                <th className="p-2 text-left bg-slate-800/80 sticky left-0 z-10">{t('panels.forcing.day')}</th>
                                                                 {typeDetails.definition.headers.map((h: string) => (
                                                                     <th key={h} className="p-2 whitespace-nowrap">{h}</th>
                                                                 ))}
@@ -338,7 +340,7 @@ export const ForcingPanel = ({ forcing }: { forcing: any }) => {
                                     <Wind size={120} />
                                 </div>
                                 <div className="text-xs uppercase text-slate-500 font-bold mb-2 tracking-widest">
-                                    Sector {i + 1}
+                                    {t('panels.forcing.sector')} {i + 1}
                                 </div>
                                 <div className="text-3xl text-white font-light mb-6 flex items-baseline gap-2">
                                     {sector.angle_start}°
@@ -346,7 +348,7 @@ export const ForcingPanel = ({ forcing }: { forcing: any }) => {
                                     {sector.angle_end}°
                                 </div>
                                 <div className="flex items-center justify-between bg-slate-900/50 p-3 rounded border border-slate-700/50">
-                                    <span className="text-sm text-slate-400">Exposure Factor</span>
+                                    <span className="text-sm text-slate-400">{t('panels.forcing.exposureFactor')}</span>
                                     <span className="text-lg font-mono text-indigo-400 font-bold">{sector.exposure_factor.toFixed(2)}</span>
                                 </div>
                             </div>

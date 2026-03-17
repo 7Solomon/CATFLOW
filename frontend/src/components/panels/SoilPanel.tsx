@@ -1,15 +1,17 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type { SoilType } from '../../types';
 import { projectApi } from '../../api/client';
 
 export const SoilPanel = ({ soils }: { soils: SoilType[] }) => {
+    const { t } = useTranslation();
     const [expandedSoil, setExpandedSoil] = useState<number | null>(null);
 
     return (
         <div className="space-y-4">
             <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-700">
-                <h3 className="text-xl font-semibold mb-4">Soil Library ({soils.length} types)</h3>
+                <h3 className="text-xl font-semibold mb-4">{t('panels.soil.title', { count: soils.length })}</h3>
                 <div className="space-y-3">
                     {soils.map(soil => (
                         <div key={soil.id} className="bg-slate-700/50 rounded-lg overflow-hidden">
@@ -48,7 +50,7 @@ export const SoilPanel = ({ soils }: { soils: SoilType[] }) => {
                                                 alert(`Fetched ${curve.theta.length} points for ${soil.name}`);
                                             }}
                                         >
-                                            Generate Hydraulic Curve
+                                            {t('panels.soil.generateCurve')}
                                         </button>
                                     </div>
                                 </div>

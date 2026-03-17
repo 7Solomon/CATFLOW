@@ -1,10 +1,12 @@
 import { Clock, MapPin, Activity } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type { FullProjectData } from '../../types';
 
 export const ConfigPanel = ({ project }: { project: FullProjectData }) => {
+    const { t } = useTranslation();
     const config = project?.config;
 
-    if (!config) return <div className="p-8 text-slate-500">No configuration loaded</div>;
+    if (!config) return <div className="p-8 text-slate-500">{t('panels.config.noConfig')}</div>;
 
     // Default empty objects to prevent crashes
     const timing = config.timing || {};
@@ -46,31 +48,31 @@ export const ConfigPanel = ({ project }: { project: FullProjectData }) => {
 
     return (
         <div className="h-full overflow-auto pr-2">
-            <Section icon={Clock} title="Simulation Timing">
+            <Section icon={Clock} title={t('panels.config.timing')}>
                 {/* Use helper function to convert string->number before formatting */}
-                <Param label="Start Time" value={formatExp(timing.start_time)} unit="s" />
-                <Param label="End Time" value={formatExp(timing.end_time)} unit="s" />
+                <Param label={t('panels.config.paramStartTime')} value={formatExp(timing.start_time)} unit="s" />
+                <Param label={t('panels.config.paramEndTime')} value={formatExp(timing.end_time)} unit="s" />
 
                 {/* These are usually simple numbers/strings, render as is */}
-                <Param label="Max Time Step" value={timing.dt_max} unit="s" />
-                <Param label="Min Time Step" value={timing.dt_min} unit="s" />
-                <Param label="Initial Step" value={timing.dt_init} unit="s" />
-                <Param label="Time Offset" value={timing.offset} unit="s" />
+                <Param label={t('panels.config.paramMaxTimeStep')} value={timing.dt_max} unit="s" />
+                <Param label={t('panels.config.paramMinTimeStep')} value={timing.dt_min} unit="s" />
+                <Param label={t('panels.config.paramInitialStep')} value={timing.dt_init} unit="s" />
+                <Param label={t('panels.config.paramTimeOffset')} value={timing.offset} unit="s" />
             </Section>
 
-            <Section icon={Activity} title="Solver Settings">
-                <Param label="Method" value={solver.method} />
-                <Param label="Max Iterations" value={solver.it_max} />
-                <Param label="Picard Epsilon" value={formatExp(solver.piceps, 1)} />
-                <Param label="CG Epsilon" value={formatExp(solver.cgeps, 1)} />
-                <Param label="Theta Opt" value={solver.d_th_opt} />
-                <Param label="Phi Opt" value={solver.d_phi_opt} />
+            <Section icon={Activity} title={t('panels.config.solver')}>
+                <Param label={t('panels.config.paramMethod')} value={solver.method} />
+                <Param label={t('panels.config.paramMaxIterations')} value={solver.it_max} />
+                <Param label={t('panels.config.paramPicardEpsilon')} value={formatExp(solver.piceps, 1)} />
+                <Param label={t('panels.config.paramCGEpsilon')} value={formatExp(solver.cgeps, 1)} />
+                <Param label={t('panels.config.paramThetaOpt')} value={solver.d_th_opt} />
+                <Param label={t('panels.config.paramPhiOpt')} value={solver.d_phi_opt} />
             </Section>
 
-            <Section icon={MapPin} title="Global Location">
-                <Param label="Latitude" value={formatFixed(location.latitude)} unit="°" />
-                <Param label="Longitude" value={formatFixed(location.longitude)} unit="°" />
-                <Param label="Ref. Longitude" value={formatFixed(location.ref_longitude)} unit="°" />
+            <Section icon={MapPin} title={t('panels.config.location')}>
+                <Param label={t('panels.config.paramLatitude')} value={formatFixed(location.latitude)} unit="°" />
+                <Param label={t('panels.config.paramLongitude')} value={formatFixed(location.longitude)} unit="°" />
+                <Param label={t('panels.config.paramRefLongitude')} value={formatFixed(location.ref_longitude)} unit="°" />
             </Section>
         </div>
     );

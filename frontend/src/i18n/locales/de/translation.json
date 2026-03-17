@@ -1,0 +1,124 @@
+{
+    "common": {
+        "appName": "CATFLOW",
+        "appSubtitle": "Visualisierung hydrologischer Daten",
+        "loading": "Laden...",
+        "loadProject": "Projekt laden",
+        "switchProject": "Projekt wechseln",
+        "retry": "Wiederholen",
+        "yes": "Ja",
+        "no": "Nein"
+    },
+    "app": {
+        "noProjectLoaded": "Kein Projekt geladen",
+        "selectTemplate": "Wählen Sie einen Vorlagenordner zur Visualisierung aus",
+        "browseProjects": "Projekte durchsuchen"
+    },
+    "hillVisualizer": {
+        "soilTypes": "Bodenarten",
+        "ksatScaling": "Ksat-Skalierung",
+        "thetaSScaling": "θs-Skalierung",
+        "initialSaturation": "Anfangs-Sättigung",
+        "macropores": "Makroporen",
+        "lockAspectRatio": "Seitenverhältnis sperren",
+        "loadingMesh": "Netz wird geladen…",
+        "surface": "Oberfläche",
+        "nodeInspector": "Knoten-Inspektor",
+        "nodeIndex": "Index",
+        "coordinateX": "X (sko)",
+        "coordinateZ": "Z (hko)"
+    },
+    "modals": {
+        "loadProject": {
+            "title": "Projekt auswählen",
+            "loadError": "Fehler beim Laden der Projektliste",
+            "noProjects": "Keine Projekte im Vorlagenordner gefunden.",
+            "hint": "Wählen Sie einen Ordner aus, um die Arbeitsumgebung zu initialisieren"
+        }
+    },
+    "panels": {
+        "config": {
+            "noConfig": "Keine Konfiguration geladen",
+            "timing": "Simulationszeit",
+            "solver": "Solver-Einstellungen",
+            "location": "Globale Position",
+            "paramStartTime": "Startzeit",
+            "paramEndTime": "Endzeit",
+            "paramMaxTimeStep": "Max. Zeitschritt",
+            "paramMinTimeStep": "Min. Zeitschritt",
+            "paramInitialStep": "Anfangs-Schritt",
+            "paramTimeOffset": "Zeitversatz",
+            "paramMethod": "Methode",
+            "paramMaxIterations": "Max. Iterationen",
+            "paramPicardEpsilon": "Picard Epsilon",
+            "paramCGEpsilon": "CG Epsilon",
+            "paramThetaOpt": "Theta Opt",
+            "paramPhiOpt": "Phi Opt",
+            "paramLatitude": "Breitengrad",
+            "paramLongitude": "Längengrad",
+            "paramRefLongitude": "Ref. Längengrad"
+        },
+        "export": {
+            "title": "Bereit zum Exportieren?",
+            "description": "Generieren Sie eine Vorschau, um alle Dateien vor dem Schreiben auf die Festplatte zu prüfen.",
+            "analyzing": "Projekt wird analysiert…",
+            "generatePreview": "Export-Vorschau generieren",
+            "totalFiles": "Gesamtanzahl Dateien",
+            "targetFolder": "Zielordner",
+            "status": "Status",
+            "warnings": "{{count}} Warnungen",
+            "ready": "Bereit",
+            "issues": "Konfigurationsprobleme",
+            "fileStructure": "Dateistruktur-Vorschau"
+        },
+        "forcing": {
+            "precipitation": "Niederschlag",
+            "climate": "Klima",
+            "landUse": "Landnutzung",
+            "wind": "Wind",
+            "availableFiles": "Verfügbare Dateien",
+            "noFiles": "Keine Dateien geladen.",
+            "loadingData": "Daten werden geladen…",
+            "dataPreview": "Daten-Vorschau",
+            "factorT": "Faktor T",
+            "selectFile": "Wählen Sie eine Datei zur Datenansicht aus",
+            "chooseFromList": "Wählen Sie aus der Liste links",
+            "simulationTimeline": "Simulationszeitachse",
+            "plantLibrary": "Pflanzenbibliothek",
+            "defined": "Definiert",
+            "source": "Quelle",
+            "day": "Tag",
+            "sector": "Sektor",
+            "exposureFactor": "Expositionsfaktor"
+        },
+        "hills": {
+            "title": "Hügel",
+            "details": "Hügel {{name}} Details",
+            "totalNodes": "Gesamtzahl Knoten",
+            "dimensions": "Abmessungen",
+            "soilMaps": "Bodenkarten",
+            "meshVisualization": "Netz-Visualisierung"
+        },
+        "overview": {
+            "health": "Projektstatus",
+            "valid": "Konfiguration gültig",
+            "issues": "Probleme erkannt",
+            "validating": "Validierung läuft…",
+            "dimensions": "Globale Netzabmessungen",
+            "totalNodes": "Gesamtzahl Knoten",
+            "simulatedHills": "Simulierte Hügel"
+        },
+        "results": {
+            "noResults": "Keine Simulationsergebnisse gefunden.",
+            "hint": "Führen Sie die Simulation aus, um Ausgabedaten zu generieren.",
+            "title": "Simulationsergebnisse",
+            "waterBalance": "Wasserhaushalt",
+            "showing": "Zeige erste {{first}} Zeitschritte von {{total}}",
+            "loading": "Wasserhaushalt wird geladen…"
+        },
+        "soil": {
+            "title": "Bodenbibliothek ({{count}} Typen)",
+            "generateCurve": "Hydraulikkurve generieren"
+        }
+    }
+}
