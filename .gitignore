@@ -6,6 +6,12 @@ workspaces/
 __pycache__
 .vscode/
 backend/ft_backend/*
+!backend/ft_backend/in
+backend/ft_backend/in/*
+!backend/ft_backend/out
+backend/ft_backend/out/*
+!backend/ft_backend/catflow.exe
+!backend/ft_backend/CATFLOW.IN
 
 ### FRONTEND
 # Logs
@@ -21,3 +27,5 @@ frontend/node_modules
 frontend/dist
 frontend/dist-ssr
 frontend/*.local
+
+CATFLOW_manual.docx
